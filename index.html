@@ -1,0 +1,1402 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tabula</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tabula">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f7f8fb">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+</head>
+<body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,600;1,500&display=swap">
+<style>
+/* Layout: Ein Schreibtisch trägt ein A4-Blatt; oben liegt eine schmale Stiftablage als Werkzeugleiste. */
+:root{
+  --desk:#dfe4ec;
+  --chrome:#f7f8fb;
+  --line:#c7cedb;
+  --fg:#1a2030;
+  --muted:#596276;
+  --accent:#2347c5;          /* Königsblau wie Füllertinte */
+  --accent-soft:#e1e7fb;
+  --accent-fg:#ffffff;
+  --danger:#b4322c;
+  --danger-fg:#ffffff;
+  --shadow:rgba(24,34,64,.16);
+  --scrim:rgba(18,24,40,.36);
+  --ring:rgba(20,28,48,.16);
+  --paper:#fdfdfb;           /* Papier bleibt in beiden Themen weiß */
+  --rule:#c3d0e4;
+  --rule-dot:#9eabc3;
+  --font-display:"Spectral", ui-serif, Georgia, "Times New Roman", serif;
+  --font-ui:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --desk:#13171f; --chrome:#1c212b; --line:#2e3544; --fg:#e6e9f1; --muted:#99a1b5;
+    --accent:#8fa5ff; --accent-soft:#252e4d; --accent-fg:#0d1330; --danger:#ff8a80; --danger-fg:#2a0b08;
+    --shadow:rgba(0,0,0,.55); --scrim:rgba(0,0,0,.55); --ring:rgba(255,255,255,.38);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --desk:#13171f; --chrome:#1c212b; --line:#2e3544; --fg:#e6e9f1; --muted:#99a1b5;
+  --accent:#8fa5ff; --accent-soft:#252e4d; --accent-fg:#0d1330; --danger:#ff8a80; --danger-fg:#2a0b08;
+  --shadow:rgba(0,0,0,.55); --scrim:rgba(0,0,0,.55); --ring:rgba(255,255,255,.38);
+  color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{height:100%;box-sizing:border-box}
+body{height:100%;margin:0;background:var(--desk);color:var(--fg);font:15px/1.45 var(--font-ui);
+  overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;touch-action:manipulation}
+button:disabled{cursor:default}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+#app{height:100%;display:flex;flex-direction:column}
+.view{flex:1 1 auto;min-height:0}
+
+/* ---------- Bibliothek ---------- */
+#library{overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:36px 56px}
+.lib-inner{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+.lib-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:18px 24px}
+.wordmark{margin:0;font-family:var(--font-display);font-weight:600;font-size:clamp(2.3rem,5.2vw,3.3rem);line-height:1;letter-spacing:-.01em;text-wrap:balance}
+.wordmark em{font-style:italic;font-weight:500;color:var(--accent)}
+.lib-sub{margin:8px 0 0;color:var(--muted);font-size:.95rem}
+.lib-actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;padding:0 16px;border-radius:11px;
+  border:1px solid var(--line);background:var(--chrome);font-weight:500;font-size:.95rem;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:var(--danger-fg)}
+.btn svg.i{width:18px;height:18px}
+.note{margin:0;padding:12px 14px;border-radius:11px;background:var(--accent-soft);font-size:.9rem;max-width:68ch;line-height:1.5}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:30px 22px}
+.nb{display:flex;flex-direction:column;gap:10px;min-width:0}
+.nb-open{display:flex;align-items:flex-end;justify-content:center;width:100%;aspect-ratio:210/297;max-width:100%;transition:transform .15s ease}
+.nb-open:active{transform:scale(.975)}
+.thumb{display:block;width:100%;max-width:100%;height:auto;aspect-ratio:210/297;border-radius:3px;background:var(--paper);box-shadow:0 1px 2px var(--shadow),0 10px 26px var(--shadow)}
+.nb-meta{display:flex;align-items:flex-start;gap:4px}
+.nb-text{flex:1;min-width:0}
+.nb-title{margin:0;font-family:var(--font-display);font-weight:500;font-size:1.06rem;line-height:1.25;overflow-wrap:anywhere}
+.nb-sub{margin:3px 0 0;color:var(--muted);font-size:.8rem;font-variant-numeric:tabular-nums}
+.empty{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:28px 0;max-width:46ch}
+.empty h2{margin:0;font-family:var(--font-display);font-weight:500;font-size:1.4rem}
+.empty p{margin:0;color:var(--muted)}
+
+/* ---------- Editor ---------- */
+#editor{display:flex;flex-direction:column}
+.toolbar{position:relative;z-index:2;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;background:var(--chrome);border-bottom:1px solid var(--line);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:6px}
+.tb-group{display:flex;align-items:center;gap:2px;min-width:0}
+.tb-spacer{flex:1 1 0;min-width:0}
+.icon-btn{width:40px;height:40px;display:grid;place-items:center;border-radius:10px;flex:none}
+.icon-btn:hover:not(:disabled){background:var(--accent-soft)}
+.icon-btn:disabled{opacity:.32}
+.title-btn{height:40px;padding:0 8px;border-radius:10px;font-family:var(--font-display);font-weight:500;font-size:1.08rem;
+  max-width:24ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.title-btn:hover{background:var(--accent-soft)}
+.tools{background:var(--desk);border-radius:12px;padding:3px;gap:2px}
+.tool{height:36px;padding:0 11px 0 9px;display:flex;align-items:center;gap:6px;border-radius:9px;color:var(--muted);font-size:.86rem;font-weight:500}
+.tool[aria-pressed="true"]{background:var(--chrome);color:var(--accent);box-shadow:0 1px 3px var(--shadow)}
+.tool svg.i{width:20px;height:20px}
+.swatch{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:none}
+.swatch::before{content:"";width:22px;height:22px;border-radius:50%;background:var(--c);box-shadow:inset 0 0 0 1px var(--ring)}
+.swatch[aria-pressed="true"]{box-shadow:0 0 0 2px var(--accent)}
+.size{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;flex:none}
+.size .dot{width:var(--d);height:var(--d);border-radius:50%;background:var(--c,var(--fg))}
+.size .dot.ring{background:none;border:1.5px solid var(--muted)}
+.size[aria-pressed="true"]{background:var(--accent-soft)}
+.page-label{height:40px;min-width:54px;max-width:24ch;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 8px;border-radius:10px;font-size:.9rem;color:var(--muted)}
+.page-label:hover{background:var(--accent-soft)}
+.pl-name{color:var(--fg);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.pl-count{font-variant-numeric:tabular-nums;flex:none}
+.page-row{display:flex;justify-content:space-between;gap:12px;width:100%}
+.page-row .pr-n{color:var(--muted);font-variant-numeric:tabular-nums;flex:none}
+.page-row .pr-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.action-list.scroll{max-height:min(52vh,420px);overflow-y:auto}
+.menu-item.current{border-color:var(--accent);color:var(--accent)}
+@media (max-width:760px){.page-label{max-width:14ch}}
+#stage{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;background:var(--desk);
+  touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hint{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+  background:var(--chrome);border:1px solid var(--line);color:var(--muted);font-size:.82rem;padding:7px 12px;border-radius:999px;
+  box-shadow:0 4px 14px var(--shadow);pointer-events:none;width:max-content;max-width:calc(100% - 32px);text-align:center;transition:opacity .4s ease}
+@media (max-width:1280px){.tool span{display:none}.tool{padding:0 9px}.page-label{max-width:20ch}}
+@media (max-width:760px){.tool span{display:none}.tool{padding:0 9px}.title-btn{max-width:11ch}}
+
+/* ---------- Menü, Dialog, Hinweis ---------- */
+.menu{position:fixed;z-index:20;width:268px;max-width:calc(100vw - 32px);background:var(--chrome);border:1px solid var(--line);
+  border-radius:14px;box-shadow:0 14px 40px var(--shadow);padding:8px;display:flex;flex-direction:column;gap:2px}
+.menu-label{margin:4px 8px 8px;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.tpl-grid{display:grid;grid-template-columns:repeat(4,1fr);align-items:end;gap:6px;padding:0 2px 6px}
+.tpl{display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px 2px;border-radius:9px;font-size:.7rem;line-height:1.2;color:var(--muted);text-align:center}
+.tpl:hover{background:var(--accent-soft)}
+.sheet{width:40px;aspect-ratio:210/297;max-width:100%;border-radius:2px;background-color:var(--paper);box-shadow:0 0 0 1px var(--line)}
+.sheet.lined{background-image:repeating-linear-gradient(to bottom,transparent 0 5px,var(--rule) 5px 6px);background-size:76% 100%;background-position:center;background-repeat:no-repeat}
+.sheet.grid{background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);background-size:4px 4px}
+.sheet.dots{background-image:radial-gradient(circle,var(--rule-dot) .9px,transparent 1.1px);background-size:4.5px 4.5px}
+.tpl[aria-pressed="true"]{color:var(--accent)}
+.tpl[aria-pressed="true"] .sheet{box-shadow:0 0 0 2px var(--accent)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:6px 4px;width:auto}
+.menu-item{display:flex;align-items:center;gap:10px;height:42px;padding:0 10px;border-radius:9px;text-align:left;font-size:.94rem}
+.menu-item:hover{background:var(--accent-soft)}
+.menu-item.danger{color:var(--danger)}
+.menu-item svg.i{width:19px;height:19px;color:var(--muted)}
+.menu-item.danger svg.i{color:var(--danger)}
+
+.scrim{position:fixed;inset:0;z-index:30;background:var(--scrim);display:grid;place-items:center;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px}
+.dialog{width:min(430px,100%);background:var(--chrome);border:1px solid var(--line);border-radius:16px;box-shadow:0 20px 60px var(--shadow);
+  padding:22px;display:flex;flex-direction:column;gap:16px}
+.dialog h2{margin:0;font-family:var(--font-display);font-weight:600;font-size:1.4rem;line-height:1.2;text-wrap:balance}
+.dialog p{margin:0;color:var(--muted);line-height:1.5}
+.field{display:flex;flex-direction:column;gap:6px;font-size:.84rem;color:var(--muted)}
+.field input{height:46px;border-radius:11px;border:1px solid var(--line);background:var(--desk);color:var(--fg);font:inherit;font-size:16px;padding:0 12px;
+  -webkit-user-select:text;user-select:text;width:100%}
+.field input:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
+.dlg-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+.action-list{display:flex;flex-direction:column;gap:4px}
+.action-list .menu-item{border:1px solid var(--line);height:46px}
+.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:40;
+  background:var(--fg);color:var(--desk);padding:10px 16px;border-radius:12px;font-size:.9rem;max-width:calc(100vw - 32px);
+  box-shadow:0 8px 24px var(--shadow);text-align:center}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4.5 19.5l1.1-4.3L16.2 4.6a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.8 18.4z"/><path d="M14.3 6.5l3.2 3.2"/></symbol>
+    <symbol id="i-marker" viewBox="0 0 24 24"><path d="M8.4 14.2 16.6 6a1.8 1.8 0 0 1 2.5 0l.9.9a1.8 1.8 0 0 1 0 2.5l-8.2 8.2z"/><path d="M8.4 14.2 6.6 16v2.4h2.4l1.8-1.8"/><path d="M4 21h7"/></symbol>
+    <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M8.2 19 4.8 15.6a1.8 1.8 0 0 1 0-2.5l8.4-8.4a1.8 1.8 0 0 1 2.5 0l3.6 3.6a1.8 1.8 0 0 1 0 2.5L11.7 19z"/><path d="M9.2 8.7l6.1 6.1"/><path d="M11.7 19H20"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 5.5 4 10.5l5 5"/><path d="M4 10.5h10.5a5 5 0 0 1 0 10H11"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 5.5l5 5-5 5"/><path d="M20 10.5H9.5a5 5 0 0 0 0 10H13"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M14 6.5 8.5 12l5.5 5.5"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M10 6.5l5.5 5.5-5.5 5.5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r=".9"/><circle cx="12" cy="12" r=".9"/><circle cx="18" cy="12" r=".9"/></symbol>
+    <symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 4H5a1 1 0 0 0-1 1v3M16 4h3a1 1 0 0 1 1 1v3M8 20H5a1 1 0 0 1-1-1v-3M16 20h3a1 1 0 0 0 1-1v-3"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="15" rx="2"/><path d="m4.5 16 4.5-4.5 4 4 2.5-2.5 4 4"/><circle cx="15.5" cy="9" r="1.4"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l.8 12h8.4L17 7"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></symbol>
+    <symbol id="i-load" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 19.5h14"/></symbol>
+  </defs>
+</svg>
+
+<div id="app">
+  <section id="library" class="view" aria-label="Bibliothek">
+    <div class="lib-inner">
+      <header class="lib-head">
+        <div>
+          <h1 class="wordmark">Tabula <em>Notizbücher</em></h1>
+          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät.</p>
+        </div>
+        <div class="lib-actions">
+          <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
+          <button class="btn" id="exportBtn" type="button"><svg class="i"><use href="#i-save"/></svg>Backup sichern</button>
+          <button class="btn" id="importBtn" type="button"><svg class="i"><use href="#i-load"/></svg>Backup laden</button>
+          <input type="file" id="importFile" accept="application/json,.json" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1">
+        </div>
+      </header>
+      <p class="note" id="storageNote" hidden></p>
+      <div class="grid" id="nbGrid"></div>
+      <div class="empty" id="emptyState" hidden>
+        <h2>Noch kein Notizbuch</h2>
+        <p>Lege ein Notizbuch an und wähle das Papier. Geschrieben wird mit dem Apple Pencil, navigiert mit zwei Fingern.</p>
+        <button class="btn primary" id="emptyNewBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Erstes Notizbuch anlegen</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="editor" class="view" aria-label="Notizbuch" hidden>
+    <header class="toolbar">
+      <div class="tb-group">
+        <button class="icon-btn" id="backBtn" type="button" aria-label="Zur Bibliothek" title="Bibliothek"><svg class="i"><use href="#i-back"/></svg></button>
+        <button class="title-btn" id="titleBtn" type="button" title="Umbenennen"><span id="nbTitle">Notizbuch</span></button>
+      </div>
+      <div class="tb-group tools" role="group" aria-label="Werkzeug">
+        <button class="tool" type="button" data-tool="pen" title="Stift (P)"><svg class="i"><use href="#i-pen"/></svg><span>Stift</span></button>
+        <button class="tool" type="button" data-tool="marker" title="Marker (M)"><svg class="i"><use href="#i-marker"/></svg><span>Marker</span></button>
+        <button class="tool" type="button" data-tool="eraser" title="Radierer (E)"><svg class="i"><use href="#i-eraser"/></svg><span>Radierer</span></button>
+      </div>
+      <div class="tb-group" id="swatches" role="group" aria-label="Farbe"></div>
+      <div class="tb-group" id="sizes" role="group" aria-label="Strichstärke"></div>
+      <div class="tb-spacer"></div>
+      <div class="tb-group">
+        <button class="icon-btn" id="undoBtn" type="button" aria-label="Rückgängig" title="Rückgängig"><svg class="i"><use href="#i-undo"/></svg></button>
+        <button class="icon-btn" id="redoBtn" type="button" aria-label="Wiederholen" title="Wiederholen"><svg class="i"><use href="#i-redo"/></svg></button>
+      </div>
+      <div class="tb-group">
+        <button class="icon-btn" id="prevBtn" type="button" aria-label="Vorherige Seite"><svg class="i"><use href="#i-prev"/></svg></button>
+        <button class="page-label" id="pageLabel" type="button" title="Seitenliste" aria-live="polite"><span class="pl-name" id="pageName"></span><span class="pl-count" id="pageCount">1 / 1</span></button>
+        <button class="icon-btn" id="nextBtn" type="button" aria-label="Nächste Seite"><svg class="i"><use href="#i-next"/></svg></button>
+        <button class="icon-btn" id="addPageBtn" type="button" aria-label="Seite dahinter einfügen" title="Seite einfügen"><svg class="i"><use href="#i-plus"/></svg></button>
+        <button class="icon-btn" id="menuBtn" type="button" aria-label="Seitenmenü" aria-haspopup="menu" aria-expanded="false"><svg class="i"><use href="#i-more"/></svg></button>
+      </div>
+    </header>
+    <div id="stage">
+      <canvas id="bgCanvas"></canvas>
+      <canvas id="liveCanvas"></canvas>
+      <div class="hint" id="hint" hidden>Zwei Finger verschieben und zoomen · Doppeltipp passt ein</div>
+    </div>
+  </section>
+
+  <div class="menu" id="pageMenu" role="menu" hidden>
+    <p class="menu-label">Papier dieser Seite</p>
+    <div class="tpl-grid" id="tplGrid"></div>
+    <p class="menu-label">Format dieser Seite</p>
+    <div class="tpl-grid" id="fmtGrid"></div>
+    <hr>
+    <button class="menu-item" id="renamePageBtn" type="button" role="menuitem"><svg class="i"><use href="#i-pen"/></svg>Seite benennen</button>
+    <button class="menu-item" id="fitBtn" type="button" role="menuitem"><svg class="i"><use href="#i-fit"/></svg><span id="fitLabel">Ganze Seite zeigen</span></button>
+    <button class="menu-item" id="pngBtn" type="button" role="menuitem"><svg class="i"><use href="#i-image"/></svg>Seite als Bild sichern</button>
+    <button class="menu-item danger" id="delPageBtn" type="button" role="menuitem"><svg class="i"><use href="#i-trash"/></svg>Seite löschen</button>
+  </div>
+
+  <div class="scrim" id="scrim" hidden>
+    <form class="dialog" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle"></form>
+  </div>
+  <div class="toast" id="toast" role="status" hidden></div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* perfect-freehand 1.2.3 · MIT License · Copyright (c) 2021 Stephen Ruiz Ltd */
+const PF = (() => { const{PI:e}=Math,t=e+1e-4,n=.5,r=[1,1];function i(e,t,n,r=e=>e){return e*r(.5-t*(.5-n))}const{min:a}=Math;function o(e,t,n){let r=a(1,t/n);return a(1,e+(a(1,1-r)-e)*(r*.275))}function s(e){return[-e[0],-e[1]]}function c(e,t){return[e[0]+t[0],e[1]+t[1]]}function l(e,t,n){return e[0]=t[0]+n[0],e[1]=t[1]+n[1],e}function u(e,t){return[e[0]-t[0],e[1]-t[1]]}function d(e,t,n){return e[0]=t[0]-n[0],e[1]=t[1]-n[1],e}function f(e,t){return[e[0]*t,e[1]*t]}function p(e,t,n){return e[0]=t[0]*n,e[1]=t[1]*n,e}function m(e,t){return[e[0]/t,e[1]/t]}function h(e){return[e[1],-e[0]]}function g(e,t){let n=t[0];return e[0]=t[1],e[1]=-n,e}function ee(e,t){return e[0]*t[0]+e[1]*t[1]}function _(e,t){return e[0]===t[0]&&e[1]===t[1]}function v(e){return Math.hypot(e[0],e[1])}function y(e,t){let n=e[0]-t[0],r=e[1]-t[1];return n*n+r*r}function b(e){return m(e,v(e))}function x(e,t){return Math.hypot(e[1]-t[1],e[0]-t[0])}function S(e,t,n){let r=Math.sin(n),i=Math.cos(n),a=e[0]-t[0],o=e[1]-t[1],s=a*i-o*r,c=a*r+o*i;return[s+t[0],c+t[1]]}function C(e,t,n,r){let i=Math.sin(r),a=Math.cos(r),o=t[0]-n[0],s=t[1]-n[1],c=o*a-s*i,l=o*i+s*a;return e[0]=c+n[0],e[1]=l+n[1],e}function w(e,t,n){return c(e,f(u(t,e),n))}function te(e,t,n,r){let i=n[0]-t[0],a=n[1]-t[1];return e[0]=t[0]+i*r,e[1]=t[1]+a*r,e}function T(e,t,n){return c(e,f(t,n))}const E=[0,0],D=[0,0],O=[0,0];function k(e,n){let r=T(e,b(h(u(e,c(e,[1,1])))),-n),i=[],a=1/13;for(let n=a;n<=1;n+=a)i.push(S(r,e,t*2*n));return i}function A(e,n,r){let i=[],a=1/r;for(let r=a;r<=1;r+=a)i.push(S(n,e,t*r));return i}function j(e,t,n){let r=u(t,n),i=f(r,.5),a=f(r,.51);return[u(e,i),u(e,a),c(e,a),c(e,i)]}function M(e,n,r,i){let a=[],o=T(e,n,r),s=1/i;for(let n=s;n<1;n+=s)a.push(S(o,e,t*3*n));return a}function ne(e,t,n){return[c(e,f(t,n)),c(e,f(t,n*.99)),u(e,f(t,n*.99)),u(e,f(t,n))]}function N(e,t,n){return e===!1||e===void 0?0:e===!0?Math.max(t,n):e}function re(e,t,n){return e.slice(0,10).reduce((e,r)=>{let i=r.pressure;return t&&(i=o(e,r.distance,n)),(e+i)/2},e[0].pressure)}function P(e,n={}){let{size:r=16,smoothing:a=.5,thinning:f=.5,simulatePressure:m=!0,easing:_=e=>e,start:v={},end:b={},last:x=!1}=n,{cap:S=!0,easing:w=e=>e*(2-e)}=v,{cap:T=!0,easing:P=e=>--e*e*e+1}=b;if(e.length===0||r<=0)return[];let F=e[e.length-1].runningLength,I=N(v.taper,r,F),L=N(b.taper,r,F),R=(r*a)**2,z=[],B=[],V=re(e,m,r),H=i(r,f,e[e.length-1].pressure,_),U,W=e[0].vector,G=e[0].point,K=G,q=G,J=K,Y=!1;for(let n=0;n<e.length;n++){let{pressure:a}=e[n],{point:s,vector:h,distance:v,runningLength:b}=e[n],x=n===e.length-1;if(!x&&F-b<3)continue;f?(m&&(a=o(V,v,r)),H=i(r,f,a,_)):H=r/2,U===void 0&&(U=H);let S=b<I?w(b/I):1,T=F-b<L?P((F-b)/L):1;H=Math.max(.01,H*Math.min(S,T));let k=(x?e[n]:e[n+1]).vector,A=x?1:ee(h,k),j=ee(h,W)<0&&!Y,M=A!==null&&A<0;if(j||M){g(E,W),p(E,E,H);for(let e=0;e<=1;e+=.07692307692307693)d(D,s,E),C(D,D,s,t*e),q=[D[0],D[1]],z.push(q),l(O,s,E),C(O,O,s,t*-e),J=[O[0],O[1]],B.push(J);G=q,K=J,M&&(Y=!0);continue}if(Y=!1,x){g(E,h),p(E,E,H),z.push(u(s,E)),B.push(c(s,E));continue}te(E,k,h,A),g(E,E),p(E,E,H),d(D,s,E),q=[D[0],D[1]],(n<=1||y(G,q)>R)&&(z.push(q),G=q),l(O,s,E),J=[O[0],O[1]],(n<=1||y(K,J)>R)&&(B.push(J),K=J),V=a,W=h}let X=[e[0].point[0],e[0].point[1]],Z=e.length>1?[e[e.length-1].point[0],e[e.length-1].point[1]]:c(e[0].point,[1,1]),Q=[],$=[];if(e.length===1){if(!(I||L)||x)return k(X,U||H)}else{I||L&&e.length===1||(S?Q.push(...A(X,B[0],13)):Q.push(...j(X,z[0],B[0])));let t=h(s(e[e.length-1].vector));L||I&&e.length===1?$.push(Z):T?$.push(...M(Z,t,H,29)):$.push(...ne(Z,t,H))}return z.concat($,B.reverse(),Q)}const F=[0,0];function I(e){return e!=null&&e>=0}function L(e,t={}){let{streamline:i=.5,size:a=16,last:o=!1}=t;if(e.length===0)return[];let s=.15+(1-i)*.85,l=Array.isArray(e[0])?e:e.map(({x:e,y:t,pressure:r=n})=>[e,t,r]);if(l.length===2){let e=l[1];l=l.slice(0,-1);for(let t=1;t<5;t++)l.push(w(l[0],e,t/4))}l.length===1&&(l=[...l,[...c(l[0],r),...l[0].slice(2)]]);let u=[{point:[l[0][0],l[0][1]],pressure:I(l[0][2])?l[0][2]:.25,vector:[...r],distance:0,runningLength:0}],f=!1,p=0,m=u[0],h=l.length-1;for(let e=1;e<l.length;e++){let t=o&&e===h?[l[e][0],l[e][1]]:w(m.point,l[e],s);if(_(m.point,t))continue;let r=x(t,m.point);if(p+=r,e<h&&!f){if(p<a)continue;f=!0}d(F,m.point,t),m={point:t,pressure:I(l[e][2])?l[e][2]:n,vector:b(F),distance:r,runningLength:p},u.push(m)}return u[0].vector=u[1]?.vector||[0,0],u}function R(e,t={}){return P(L(e,t),t)}var z=R;return{getStroke:R}; })();
+
+/* ================= Konstanten ================= */
+const FORMATS = [                             // Maße in Zehntelmillimetern
+  { id: 'a4',  name: 'A4 hoch', w: 2100, h: 2970 },
+  { id: 'a4q', name: 'A4 quer', w: 2970, h: 2100 },
+  { id: 'a3q', name: 'A3 quer', w: 4200, h: 2970 },
+  { id: 'a1q', name: 'A1 quer', w: 8410, h: 5940 }
+];
+const fmtOf = p => FORMATS.find(f => f.id === (p && p.format)) || FORMATS[0];
+let PW = 2100, PH = 2970;                     // Maße der offenen Seite
+const PAPER = '#fdfdfb';
+const TEMPLATES = [
+  { id: 'blank', name: 'Blanko' },
+  { id: 'lined', name: 'Liniert 8 mm' },
+  { id: 'grid',  name: 'Kariert 5 mm' },
+  { id: 'dots',  name: 'Punkte 5 mm' }
+];
+const TOOLS = {
+  pen:    { colors: ['#1b1f27', '#2347c5', '#c22f2b', '#1d7a48'], names: ['Schwarz', 'Königsblau', 'Rot', 'Grün'], sizes: [5, 9, 15], dots: [5, 8, 12] },
+  marker: { colors: ['#ffd23a', '#7fe08b', '#ff95c9', '#83ccff'], names: ['Gelb', 'Grün', 'Pink', 'Blau'],      sizes: [30, 44, 62], dots: [9, 13, 18] },
+  eraser: { sizes: [30, 70, 140], dots: [8, 13, 19] }
+};
+const SIZE_NAMES = ['Fein', 'Mittel', 'Dick'];
+const MARKER_ALPHA = 0.42;
+const EMBEDDED = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const r1 = v => Math.round(v * 10) / 10;
+
+function uid() {
+  try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+  const h = Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+function lsGet(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+/* ================= Speicher (IndexedDB, Fallback im Arbeitsspeicher) ================= */
+const Store = (() => {
+  let db = null, mem = null;
+  const copy = o => JSON.parse(JSON.stringify(o));
+  function openDB() {
+    return new Promise((res, rej) => {
+      let r;
+      try { r = indexedDB.open('tabula', 1); } catch (e) { rej(e); return; }
+      r.onupgradeneeded = () => {
+        const d = r.result;
+        if (!d.objectStoreNames.contains('notebooks')) d.createObjectStore('notebooks', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('pages')) d.createObjectStore('pages', { keyPath: 'id' }).createIndex('notebookId', 'notebookId');
+        if (!d.objectStoreNames.contains('strokes')) d.createObjectStore('strokes', { keyPath: 'id' }).createIndex('pageId', 'pageId');
+      };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+      r.onblocked = () => rej(new Error('blocked'));
+    });
+  }
+  async function init() {
+    try {
+      db = await Promise.race([openDB(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000))]);
+      return true;
+    } catch (e) {
+      mem = { notebooks: new Map(), pages: new Map(), strokes: new Map() };
+      return false;
+    }
+  }
+  function getAll(store, index, key) {
+    if (mem) {
+      const all = [...mem[store].values()].filter(x => !index || x[index] === key);
+      return Promise.resolve(all.map(copy));
+    }
+    return new Promise((res, rej) => {
+      const os = db.transaction(store, 'readonly').objectStore(store);
+      const r = index ? os.index(index).getAll(key) : os.getAll();
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+  }
+  function get(store, key) {
+    if (mem) { const v = mem[store].get(key); return Promise.resolve(v ? copy(v) : undefined); }
+    return new Promise((res, rej) => {
+      const r = db.transaction(store, 'readonly').objectStore(store).get(key);
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+  }
+  function put(store, items) {
+    items = [].concat(items).filter(Boolean);
+    if (!items.length) return Promise.resolve();
+    if (mem) { items.forEach(i => mem[store].set(i.id, copy(i))); return Promise.resolve(); }
+    return new Promise((res, rej) => {
+      const t = db.transaction(store, 'readwrite'); const os = t.objectStore(store);
+      items.forEach(i => os.put(i));
+      t.oncomplete = () => res(); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    });
+  }
+  return { init, getAll, get, put, get persistent() { return !mem; } };
+})();
+
+function save(store, items) {
+  return Store.put(store, items).catch(err => {
+    console.error(err);
+    toast('Speichern fehlgeschlagen. Sichere ein Backup, bevor du weiterschreibst.');
+  });
+}
+
+/* ================= Zustand ================= */
+const S = {
+  view: 'library',
+  tool: 'pen',
+  sel: { pen: { color: 0, size: 1 }, marker: { color: 0, size: 1 }, eraser: { size: 1 } },
+  nb: null, pages: [], pi: 0, page: null,
+  strokes: [], byId: new Map(), cache: new Map(),
+  v: { s: 1, x: 0, y: 0 }, fitMode: 'width',
+  pressureSeen: false,
+  hist: new Map(),
+  loadToken: 0
+};
+function loadPrefs() {
+  const p = lsGet('tabula.prefs', null);
+  if (p && p.sel) {
+    for (const k of ['pen', 'marker', 'eraser']) if (p.sel[k]) Object.assign(S.sel[k], p.sel[k]);
+    if (TOOLS[p.tool]) S.tool = p.tool;
+  }
+  S.pressureSeen = !!lsGet('tabula.pressure', false);
+}
+const savePrefs = () => lsSet('tabula.prefs', { sel: S.sel, tool: S.tool });
+
+/* ================= Strich-Geometrie ================= */
+function strokeOpts(tool, size, pr, last) {
+  if (tool === 'marker') return { size, thinning: 0, smoothing: 0.6, streamline: 0.45, simulatePressure: false, last };
+  return pr
+    ? { size, thinning: 0.62, smoothing: 0.55, streamline: 0.3, simulatePressure: false, last }
+    : { size, thinning: 0.42, smoothing: 0.55, streamline: 0.3, simulatePressure: true, last };
+}
+function unflat(flat, withP) {
+  const out = [];
+  for (let i = 0; i < flat.length; i += 3) out.push(withP ? [flat[i], flat[i + 1], flat[i + 2]] : [flat[i], flat[i + 1]]);
+  return out;
+}
+function outlinePath(o, pts, size) {
+  const p = new Path2D(), n = o.length;
+  if (n < 3) { const a = pts[0]; if (a) p.arc(a[0], a[1], size / 2, 0, Math.PI * 2); return p; }
+  let a = o[n - 1], b = o[0];
+  p.moveTo((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+  for (let i = 0; i < n; i++) {
+    a = o[i]; b = o[(i + 1) % n];
+    p.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+  }
+  p.closePath();
+  return p;
+}
+function bbox(flat, size) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i < flat.length; i += 3) {
+    const x = flat[i], y = flat[i + 1];
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  const m = size;
+  return [x0 - m, y0 - m, x1 + m, y1 + m];
+}
+function buildEntry(s) {
+  const withP = s.tool === 'pen' && !!s.pr;
+  const pts = unflat(s.pts, withP);
+  const outline = PF.getStroke(pts, strokeOpts(s.tool, s.size, withP, true));
+  return { path: outlinePath(outline, pts, s.size), box: bbox(s.pts, s.size) };
+}
+function entry(s) {
+  let e = S.cache.get(s.id);
+  if (!e) { e = buildEntry(s); S.cache.set(s.id, e); }
+  return e;
+}
+
+/* ================= Zeichnen ================= */
+function drawTemplate(ctx, tpl, ppu, w, h, vis) {
+  if (tpl === 'blank') return;
+  const L = 150, T = 150, R = L + Math.floor((w - 300) / 50) * 50, B = T + Math.floor((h - 300) / 50) * 50;
+  const v = vis || [0, 0, w, h];
+  const x0 = Math.max(L, v[0]), x1 = Math.min(R, v[2]), y0 = Math.max(T, v[1]), y1 = Math.min(B, v[3]);
+  if (x0 > x1 || y0 > y1) return;
+  const from = (start, lo, step) => start + Math.max(0, Math.ceil((lo - start) / step)) * step;
+  if ((tpl === 'lined' ? 80 : 50) * ppu < 4) return; // zu dicht zum Erkennen, etwa in Vorschaubildern
+  const lw = 1.5 / ppu; // etwa 1,5 Bildpunkte, unabhängig vom Zoom
+  if (tpl === 'lined') {
+    ctx.strokeStyle = '#b7c6df'; ctx.lineWidth = lw; ctx.beginPath();
+    for (let y = from(T + 80, y0, 80); y <= y1 + 0.1; y += 80) { ctx.moveTo(x0, y); ctx.lineTo(x1, y); }
+    ctx.stroke();
+  } else if (tpl === 'grid') {
+    ctx.strokeStyle = '#c8d3e6'; ctx.lineWidth = lw; ctx.beginPath();
+    for (let x = from(L, x0, 50); x <= x1 + 0.1; x += 50) { ctx.moveTo(x, y0); ctx.lineTo(x, y1); }
+    for (let y = from(T, y0, 50); y <= y1 + 0.1; y += 50) { ctx.moveTo(x0, y); ctx.lineTo(x1, y); }
+    ctx.stroke();
+  } else if (tpl === 'dots') {
+    ctx.fillStyle = '#a3afc6';
+    const r = 1.2 + 1.3 / ppu;
+    for (let y = from(T, y0, 50); y <= y1 + 0.1; y += 50) for (let x = from(L, x0, 50); x <= x1 + 0.1; x += 50) ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+}
+function hitsRect(b, vis) { return !vis || !(b[2] < vis[0] || b[0] > vis[2] || b[3] < vis[1] || b[1] > vis[3]); }
+function drawStrokes(ctx, strokes, vis, get = entry) {
+  ctx.globalAlpha = MARKER_ALPHA;
+  for (const s of strokes) {
+    if (s.deleted || s.tool !== 'marker') continue;
+    const e = get(s); if (!hitsRect(e.box, vis)) continue;
+    ctx.fillStyle = s.color; ctx.fill(e.path);
+  }
+  ctx.globalAlpha = 1;
+  for (const s of strokes) {
+    if (s.deleted || s.tool === 'marker') continue;
+    const e = get(s); if (!hitsRect(e.box, vis)) continue;
+    ctx.fillStyle = s.color; ctx.fill(e.path);
+  }
+}
+
+const stage = $('stage'), bg = $('bgCanvas'), live = $('liveCanvas');
+const bctx = bg.getContext('2d'), lctx = live.getContext('2d');
+let W = 1, H = 1, DPR = 1, SR = { left: 0, top: 0 };
+
+function resize() {
+  const r = stage.getBoundingClientRect();
+  SR = r; W = Math.max(1, r.width); H = Math.max(1, r.height);
+  DPR = Math.min(window.devicePixelRatio || 1, 3);
+  for (const c of [bg, live]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+}
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function visibleRect() { const { s, x, y } = S.v; return [-x / s, -y / s, (W - x) / s, (H - y) / s]; }
+function applyView(ctx) { const { s, x, y } = S.v; ctx.setTransform(DPR * s, 0, 0, DPR * s, DPR * x, DPR * y); }
+
+let bgQueued = false, liveQueued = false;
+function requestBg() { if (!bgQueued) { bgQueued = true; requestAnimationFrame(renderBg); } }
+function requestLive() { if (!liveQueued) { liveQueued = true; requestAnimationFrame(renderLive); } }
+
+function renderBg() {
+  bgQueued = false;
+  const ctx = bctx;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, bg.width, bg.height);
+  if (!S.page) return;
+  applyView(ctx);
+  ctx.save();
+  ctx.shadowColor = cssVar('--shadow') || 'rgba(0,0,0,.2)';
+  ctx.shadowBlur = 22 * DPR; ctx.shadowOffsetY = 4 * DPR;
+  ctx.fillStyle = PAPER; ctx.fillRect(0, 0, PW, PH);
+  ctx.restore();
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, PW, PH); ctx.clip();
+  const vis = visibleRect();
+  drawTemplate(ctx, S.page.template, S.v.s * DPR, PW, PH, vis);
+  drawStrokes(ctx, S.strokes, vis);
+  ctx.restore();
+}
+function drawOneOnBg(s) {
+  if (bgQueued) return; // ein voller Neuzeichnen-Durchgang steht ohnehin an
+  const ctx = bctx;
+  applyView(ctx);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, PW, PH); ctx.clip();
+  ctx.globalAlpha = 1; ctx.fillStyle = s.color; ctx.fill(entry(s).path);
+  ctx.restore();
+}
+function clearLive() { lctx.setTransform(1, 0, 0, 1, 0, 0); lctx.clearRect(0, 0, live.width, live.height); }
+
+function inkHasPressure(k) {
+  if (k.tool !== 'pen') return false;
+  if (S.pressureSeen) return true;
+  return k.pvals.size > 3 && (k.pmax - k.pmin) > 0.1;
+}
+function renderLive() {
+  liveQueued = false;
+  clearLive();
+  const ctx = lctx;
+  applyView(ctx);
+  if (ink && ink.pts.length) {
+    const pr = inkHasPressure(ink);
+    let pts = unflat(ink.pts, pr);
+    if (ink.pred) pts = pts.concat(ink.pred.map(q => pr ? q : [q[0], q[1]]));
+    const o = PF.getStroke(pts, strokeOpts(ink.tool, ink.size, pr, false));
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, PW, PH); ctx.clip();
+    ctx.globalAlpha = ink.tool === 'marker' ? MARKER_ALPHA : 1;
+    ctx.fillStyle = ink.color; ctx.fill(outlinePath(o, pts, ink.size));
+    ctx.restore();
+  }
+  if (eraser && eraser.pos) {
+    const [x, y] = eraser.pos;
+    ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(x, y, eraser.r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fill();
+    ctx.lineWidth = 1.5 / S.v.s; ctx.strokeStyle = 'rgba(52,62,84,.75)'; ctx.stroke();
+  }
+}
+
+/* ================= Ansicht ================= */
+function fitView(mode) {
+  S.fitMode = mode;
+  const pad = W < 600 ? 16 : 28;
+  if (mode === 'page') {
+    const s = Math.min((W - 2 * pad) / PW, (H - 2 * pad) / PH);
+    S.v = { s, x: (W - PW * s) / 2, y: (H - PH * s) / 2 };
+  } else {
+    const s = (W - 2 * pad) / PW;
+    S.v = { s, x: (W - PW * s) / 2, y: pad };
+  }
+}
+function scaleLimits() {
+  const fitPage = Math.min((W - 32) / PW, (H - 32) / PH);
+  const fitW = (W - 32) / PW;
+  return [Math.min(fitPage, fitW) * 0.6, Math.max(Math.max(fitPage, fitW) * 6, 2.5)];
+}
+function clampView() {
+  const m = 64, pw = PW * S.v.s, ph = PH * S.v.s;
+  S.v.x = clamp(S.v.x, m - pw, W - m);
+  S.v.y = clamp(S.v.y, m - ph, H - m);
+}
+function zoomAt(cx, cy, f) {
+  const [mn, mx] = scaleLimits();
+  const s = clamp(S.v.s * f, mn, mx);
+  const px = (cx - S.v.x) / S.v.s, py = (cy - S.v.y) / S.v.s;
+  S.v = { s, x: cx - px * s, y: cy - py * s };
+  clampView();
+}
+function toggleFit() { fitView(S.fitMode === 'width' ? 'page' : 'width'); requestBg(); }
+
+/* ================= Eingabe ================= */
+let ink = null, eraser = null, lastInkT = -1e9;
+const touches = new Map();
+let gesture = null, tapInfo = null, lastTap = null;
+
+const localXY = e => [e.clientX - SR.left, e.clientY - SR.top];
+const pageXY = e => { const [x, y] = localXY(e); return [(x - S.v.x) / S.v.s, (y - S.v.y) / S.v.s]; };
+const clampP = p => (p >= 0 && p <= 1 ? p : 0.5);
+function coalesced(e) {
+  try { const c = e.getCoalescedEvents && e.getCoalescedEvents(); if (c && c.length) return c; } catch (_) {}
+  return [e];
+}
+function predicted(e) {
+  try {
+    const p = e.getPredictedEvents && e.getPredictedEvents();
+    if (p && p.length) return p.slice(0, 3).map(ev => { const [x, y] = pageXY(ev); return [x, y, clampP(ev.pressure)]; });
+  } catch (_) {}
+  return null;
+}
+function addInkPoint(ev, x, y, first) {
+  const p = ev.pointerType === 'pen' ? clampP(ev.pressure) : 0.5;
+  const pts = ink.pts, n = pts.length;
+  if (n) { const dx = x - pts[n - 3], dy = y - pts[n - 2]; if (dx * dx + dy * dy < 0.36) return; }
+  pts.push(r1(x), r1(y), Math.round(p * 1000) / 1000);
+  if (!first && ev.pointerType === 'pen') {
+    if (p < ink.pmin) ink.pmin = p; if (p > ink.pmax) ink.pmax = p;
+    if (ink.pvals.size < 8) ink.pvals.add(Math.round(p * 100));
+  }
+}
+
+function onDown(e) {
+  if (S.view !== 'editor' || !S.page) return;
+  if (e.pointerType === 'pen' || e.pointerType === 'mouse') {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    closeMenu();
+    if (ink || eraser) return;
+    abortGesture();
+    SR = stage.getBoundingClientRect();
+    try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+    lastInkT = performance.now();
+    hideHint();
+    const [x, y] = pageXY(e);
+    if (S.tool === 'eraser') {
+      eraser = { id: e.pointerId, r: TOOLS.eraser.sizes[S.sel.eraser.size], last: [x, y], pos: [x, y], hits: [] };
+      eraseSeg([x, y], [x, y]);
+      requestLive();
+      return;
+    }
+    if (x < -10 || y < -10 || x > PW + 10 || y > PH + 10) return;
+    const conf = TOOLS[S.tool], sel = S.sel[S.tool];
+    ink = { id: e.pointerId, tool: S.tool, color: conf.colors[sel.color], size: conf.sizes[sel.size],
+            pts: [], pmin: 1, pmax: 0, pvals: new Set(), pred: null };
+    addInkPoint(e, x, y, true);
+    requestLive();
+    return;
+  }
+  if (e.pointerType === 'touch') onTouchDown(e);
+}
+function onMove(e) {
+  if (ink && e.pointerId === ink.id) {
+    e.preventDefault();
+    for (const ev of coalesced(e)) { const [x, y] = pageXY(ev); addInkPoint(ev, x, y, false); }
+    ink.pred = predicted(e);
+    lastInkT = performance.now();
+    requestLive();
+    return;
+  }
+  if (eraser && e.pointerId === eraser.id) {
+    e.preventDefault();
+    for (const ev of coalesced(e)) { const q = pageXY(ev); eraseSeg(eraser.last, q); eraser.last = q; }
+    eraser.pos = eraser.last;
+    lastInkT = performance.now();
+    requestLive();
+    return;
+  }
+  if (e.pointerType === 'touch' && touches.has(e.pointerId)) {
+    e.preventDefault();
+    const q = localXY(e);
+    touches.set(e.pointerId, q);
+    if (gesture) updateGesture();
+    else if (tapInfo && tapInfo.id === e.pointerId && Math.hypot(q[0] - tapInfo.x, q[1] - tapInfo.y) > 14) tapInfo = null;
+  }
+}
+function onUp(e) {
+  if (ink && e.pointerId === ink.id) {
+    e.preventDefault();
+    if (e.type === 'pointerup') { const [x, y] = pageXY(e); addInkPoint(e, x, y, false); }
+    finishInk();
+    return;
+  }
+  if (eraser && e.pointerId === eraser.id) { e.preventDefault(); finishErase(); return; }
+  if (e.pointerType === 'touch') onTouchUp(e, e.type === 'pointercancel');
+}
+
+function finishInk() {
+  const k = ink; ink = null; lastInkT = performance.now();
+  if (!k || !k.pts.length) { requestLive(); return; }
+  const pr = inkHasPressure(k) && (S.pressureSeen || (k.pvals.size > 3 && k.pmax - k.pmin > 0.1));
+  if (pr && !S.pressureSeen) { S.pressureSeen = true; lsSet('tabula.pressure', true); }
+  if (!pr) for (let i = 2; i < k.pts.length; i += 3) k.pts[i] = 0.5;
+  const now = Date.now();
+  const s = { id: uid(), pageId: S.page.id, tool: k.tool, color: k.color, size: k.size, pr: pr ? 1 : 0,
+              pts: k.pts, deleted: 0, t: now, u: now };
+  S.strokes.push(s); S.byId.set(s.id, s);
+  pushHist({ ids: [s.id], del: 0 });
+  if (s.tool === 'pen') drawOneOnBg(s); else renderBg();
+  clearLive();
+  save('strokes', s);
+  touchMeta();
+}
+
+/* Radierer: ganze Striche, die der Kreis berührt */
+function distSegSq(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy;
+  let t = l ? ((px - ax) * dx + (py - ay) * dy) / l : 0;
+  t = clamp(t, 0, 1);
+  const x = ax + t * dx - px, y = ay + t * dy - py;
+  return x * x + y * y;
+}
+function hitStroke(s, a, b, rad) {
+  const p = s.pts, r2 = rad * rad;
+  for (let i = 0; i < p.length; i += 3) if (distSegSq(p[i], p[i + 1], a[0], a[1], b[0], b[1]) <= r2) return true;
+  for (let i = 3; i < p.length; i += 3) if (distSegSq(b[0], b[1], p[i - 3], p[i - 2], p[i], p[i + 1]) <= r2) return true;
+  return false;
+}
+function eraseSeg(a, b) {
+  const r = eraser.r;
+  const box = [Math.min(a[0], b[0]) - r, Math.min(a[1], b[1]) - r, Math.max(a[0], b[0]) + r, Math.max(a[1], b[1]) + r];
+  let changed = false;
+  for (const s of S.strokes) {
+    if (s.deleted) continue;
+    if (!hitsRect(entry(s).box, box)) continue;
+    if (hitStroke(s, a, b, r + s.size / 2)) { s.deleted = 1; s.u = Date.now(); eraser.hits.push(s.id); changed = true; }
+  }
+  if (changed) requestBg();
+}
+function finishErase() {
+  const ids = eraser.hits; eraser = null; lastInkT = performance.now();
+  clearLive();
+  if (ids.length) {
+    pushHist({ ids, del: 1 });
+    save('strokes', ids.map(id => S.byId.get(id)));
+    touchMeta();
+  }
+}
+
+/* Finger: zwei Finger verschieben und zoomen, ein Finger tut nichts (Handballen) */
+function onTouchDown(e) {
+  e.preventDefault();
+  if (ink || eraser) return;
+  const now = performance.now();
+  const q = localXY(e);
+  touches.set(e.pointerId, q);
+  if (touches.size === 1) tapInfo = now - lastInkT > 400 ? { id: e.pointerId, x: q[0], y: q[1], t: now } : null;
+  else tapInfo = null;
+  if (touches.size === 2) {
+    const [a, b] = [...touches.values()];
+    gesture = { v0: { ...S.v }, c0: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], d0: Math.max(1, Math.hypot(a[0] - b[0], a[1] - b[1])), t0: now, active: false };
+  }
+}
+function updateGesture() {
+  if (touches.size < 2) return;
+  const [a, b] = [...touches.values()];
+  const c = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], d = Math.max(1, Math.hypot(a[0] - b[0], a[1] - b[1]));
+  const g = gesture;
+  if (!g.active) {
+    if (Math.hypot(c[0] - g.c0[0], c[1] - g.c0[1]) > 6 || Math.abs(d - g.d0) > 8) { g.active = true; hideHint(); }
+    else return;
+  }
+  const [mn, mx] = scaleLimits();
+  const s = clamp(g.v0.s * d / g.d0, mn, mx);
+  const px = (g.c0[0] - g.v0.x) / g.v0.s, py = (g.c0[1] - g.v0.y) / g.v0.s;
+  S.v = { s, x: c[0] - px * s, y: c[1] - py * s };
+  clampView();
+  S.fitMode = null;
+  requestBg();
+}
+function abortGesture() {
+  // Setzt der Stift kurz nach Beginn einer Geste auf, war es vermutlich der Handballen: Ansicht zurücksetzen.
+  if (gesture && gesture.active && performance.now() - gesture.t0 < 500) { S.v = { ...gesture.v0 }; requestBg(); }
+  gesture = null; tapInfo = null; touches.clear();
+}
+function onTouchUp(e, cancelled) {
+  if (!touches.has(e.pointerId)) return;
+  touches.delete(e.pointerId);
+  if (gesture && touches.size < 2) gesture = null;
+  if (!cancelled && tapInfo && tapInfo.id === e.pointerId && touches.size === 0) {
+    const now = performance.now();
+    if (now - tapInfo.t < 280) {
+      if (lastTap && now - lastTap.t < 340 && Math.hypot(tapInfo.x - lastTap.x, tapInfo.y - lastTap.y) < 44) { lastTap = null; toggleFit(); }
+      else lastTap = { t: now, x: tapInfo.x, y: tapInfo.y };
+    }
+  }
+  if (touches.size === 0) tapInfo = null;
+}
+
+stage.addEventListener('pointerdown', onDown, { passive: false });
+stage.addEventListener('pointermove', onMove, { passive: false });
+stage.addEventListener('pointerup', onUp, { passive: false });
+stage.addEventListener('pointercancel', onUp, { passive: false });
+stage.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+stage.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+stage.addEventListener('contextmenu', e => e.preventDefault());
+stage.addEventListener('wheel', e => {
+  if (S.view !== 'editor') return;
+  e.preventDefault();
+  SR = stage.getBoundingClientRect();
+  if (e.ctrlKey) { const [x, y] = localXY(e); zoomAt(x, y, Math.exp(-e.deltaY * 0.01)); }
+  else { S.v.x -= e.deltaX; S.v.y -= e.deltaY; clampView(); }
+  S.fitMode = null;
+  requestBg();
+}, { passive: false });
+for (const t of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(t, e => { if (S.view === 'editor') e.preventDefault(); }, { passive: false });
+
+/* ================= Verlauf ================= */
+function hist() {
+  let h = S.hist.get(S.page.id);
+  if (!h) { h = { u: [], r: [] }; S.hist.set(S.page.id, h); }
+  return h;
+}
+function pushHist(op) { const h = hist(); h.u.push(op); if (h.u.length > 300) h.u.shift(); h.r.length = 0; updateUndoUI(); }
+function setDeleted(ids, val) {
+  const now = Date.now(), changed = [];
+  for (const id of ids) { const s = S.byId.get(id); if (s) { s.deleted = val; s.u = now; changed.push(s); } }
+  save('strokes', changed); renderBg(); touchMeta();
+}
+function undo() { if (ink || eraser || !S.page) return; const h = hist(), op = h.u.pop(); if (!op) return; setDeleted(op.ids, op.del ? 0 : 1); h.r.push(op); updateUndoUI(); }
+function redo() { if (ink || eraser || !S.page) return; const h = hist(), op = h.r.pop(); if (!op) return; setDeleted(op.ids, op.del); h.u.push(op); updateUndoUI(); }
+function updateUndoUI() {
+  const h = S.page ? hist() : { u: [], r: [] };
+  $('undoBtn').disabled = !h.u.length; $('redoBtn').disabled = !h.r.length;
+}
+
+/* Metadaten (Seite, Notizbuch) gebündelt sichern */
+let metaTimer = null;
+function touchMeta() {
+  const now = Date.now();
+  if (S.page) S.page.u = now;
+  if (S.nb) S.nb.u = now;
+  clearTimeout(metaTimer); metaTimer = setTimeout(flushMeta, 600);
+}
+function flushMeta() {
+  if (metaTimer == null) return;
+  clearTimeout(metaTimer); metaTimer = null;
+  if (S.page) save('pages', S.page);
+  if (S.nb) save('notebooks', S.nb);
+}
+window.addEventListener('pagehide', flushMeta);
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushMeta(); });
+
+/* ================= Werkzeugleiste ================= */
+function setTool(t) { if (!TOOLS[t] || ink || eraser) return; S.tool = t; savePrefs(); renderToolbar(); }
+function renderToolbar() {
+  document.querySelectorAll('.tool').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === S.tool)));
+  const conf = TOOLS[S.tool], sel = S.sel[S.tool];
+  const sw = $('swatches'); sw.textContent = ''; sw.hidden = !conf.colors;
+  (conf.colors || []).forEach((c, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'swatch'; b.style.setProperty('--c', c);
+    b.title = conf.names[i]; b.setAttribute('aria-label', conf.names[i]); b.setAttribute('aria-pressed', String(i === sel.color));
+    b.onclick = () => { sel.color = i; savePrefs(); renderToolbar(); };
+    sw.appendChild(b);
+  });
+  const sz = $('sizes'); sz.textContent = '';
+  conf.sizes.forEach((v, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'size'; b.title = SIZE_NAMES[i];
+    b.setAttribute('aria-label', SIZE_NAMES[i]); b.setAttribute('aria-pressed', String(i === sel.size));
+    const d = document.createElement('span');
+    d.className = 'dot' + (S.tool === 'eraser' ? ' ring' : '');
+    d.style.setProperty('--d', conf.dots[i] + 'px');
+    if (conf.colors && sel.color !== 0 || S.tool === 'marker') d.style.setProperty('--c', conf.colors[sel.color]);
+    b.appendChild(d);
+    b.onclick = () => { sel.size = i; savePrefs(); renderToolbar(); };
+    sz.appendChild(b);
+  });
+}
+document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+$('undoBtn').onclick = undo;
+$('redoBtn').onclick = redo;
+$('prevBtn').onclick = () => { if (S.pi > 0) gotoPage(S.pi - 1); };
+$('nextBtn').onclick = () => { if (S.pi < S.pages.length - 1) gotoPage(S.pi + 1); };
+$('addPageBtn').onclick = addPage;
+$('backBtn').onclick = () => { flushMeta(); closeMenu(); showLibrary(); };
+$('titleBtn').onclick = () => renameNotebook(S.nb);
+
+function renderPageUI() {
+  const name = S.page && S.page.title ? S.page.title : '';
+  $('pageName').textContent = name; $('pageName').hidden = !name;
+  $('pageCount').textContent = name ? `${S.pi + 1}/${S.pages.length}` : `${S.pi + 1} / ${S.pages.length}`;
+  $('pageLabel').setAttribute('aria-label', `${name ? name + ', ' : ''}Seite ${S.pi + 1} von ${S.pages.length}. Seitenliste öffnen`);
+  $('prevBtn').disabled = S.pi <= 0;
+  $('nextBtn').disabled = S.pi >= S.pages.length - 1;
+  $('nbTitle').textContent = S.nb ? S.nb.title : '';
+  updateUndoUI();
+}
+
+/* Seitenmenü */
+const menu = $('pageMenu');
+TEMPLATES.forEach(t => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'tpl'; b.dataset.tpl = t.id; b.setAttribute('role', 'menuitemradio');
+  b.innerHTML = `<span class="sheet ${t.id}"></span><span>${t.name.replace(' ', '<br>')}</span>`;
+  b.onclick = () => {
+    if (!S.page || S.page.template === t.id) return;
+    S.page.template = t.id; touchMeta(); flushMeta(); markTemplate(); requestBg();
+  };
+  $('tplGrid').appendChild(b);
+});
+function markTemplate() {
+  menu.querySelectorAll('.tpl[data-tpl]').forEach(b => b.setAttribute('aria-pressed', String(!!S.page && b.dataset.tpl === S.page.template)));
+  menu.querySelectorAll('.tpl[data-fmt]').forEach(b => b.setAttribute('aria-pressed', String(!!S.page && b.dataset.fmt === fmtOf(S.page).id)));
+}
+function fmtButton(f) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'tpl'; b.dataset.fmt = f.id;
+  const wpx = f.w > f.h ? 40 : 28;
+  b.innerHTML = `<span class="sheet" style="width:${wpx}px;aspect-ratio:${f.w}/${f.h}"></span><span>${f.name.replace(' ', '<br>')}</span>`;
+  return b;
+}
+FORMATS.forEach(f => {
+  const b = fmtButton(f); b.setAttribute('role', 'menuitemradio');
+  b.onclick = () => {
+    if (!S.page || fmtOf(S.page).id === f.id) return;
+    S.page.format = f.id; PW = f.w; PH = f.h;
+    touchMeta(); flushMeta(); markTemplate(); fitView(PW > PH ? 'page' : 'width'); requestBg();
+  };
+  $('fmtGrid').appendChild(b);
+});
+function openMenu() {
+  markTemplate();
+  $('fitLabel').textContent = S.fitMode === 'width' ? 'Ganze Seite zeigen' : 'Seitenbreite zeigen';
+  const r = $('menuBtn').getBoundingClientRect();
+  menu.hidden = false;
+  const mw = menu.offsetWidth;
+  menu.style.top = Math.round(r.bottom + 6) + 'px';
+  menu.style.left = Math.round(clamp(r.right - mw, 16, window.innerWidth - mw - 16)) + 'px';
+  $('menuBtn').setAttribute('aria-expanded', 'true');
+}
+function closeMenu() { if (!menu.hidden) { menu.hidden = true; $('menuBtn').setAttribute('aria-expanded', 'false'); } }
+$('menuBtn').onclick = () => (menu.hidden ? openMenu() : closeMenu());
+document.addEventListener('pointerdown', e => {
+  if (!menu.hidden && !menu.contains(e.target) && !$('menuBtn').contains(e.target)) closeMenu();
+}, true);
+$('fitBtn').onclick = () => { closeMenu(); toggleFit(); };
+$('renamePageBtn').onclick = () => { closeMenu(); renamePage(); };
+$('pageLabel').onclick = () => { closeMenu(); pageList(); };
+async function renamePage() {
+  if (!S.page) return;
+  const r = await dialog({ title: `Seite ${S.pi + 1} benennen`, input: { label: 'Name der Seite', value: S.page.title || '' }, confirm: 'Sichern' });
+  if (!r) return;
+  S.page.title = r.value; touchMeta(); flushMeta(); renderPageUI();
+}
+async function pageList() {
+  if (!S.page) return;
+  const actions = S.pages.map((p, i) => ({ id: 'p' + i, label: p.title || 'Ohne Namen', n: i + 1, current: i === S.pi }));
+  actions.push({ id: 'rename', label: 'Diese Seite benennen', plain: true });
+  const a = await dialog({ title: S.nb.title, actions, scroll: true });
+  if (a === 'rename') renamePage();
+  else if (a && a[0] === 'p') { const i = +a.slice(1); if (i !== S.pi) gotoPage(i); }
+}
+$('pngBtn').onclick = () => { closeMenu(); exportPagePNG(); };
+$('delPageBtn').onclick = () => { closeMenu(); deletePage(); };
+
+document.addEventListener('keydown', e => {
+  if (!$('scrim').hidden) { if (e.key === 'Escape') dialogCancel(); return; }
+  if (e.key === 'Escape') closeMenu();
+  if (S.view !== 'editor') return;
+  const k = e.key.toLowerCase(), mod = e.metaKey || e.ctrlKey;
+  if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  else if (mod && k === 'y') { e.preventDefault(); redo(); }
+  else if (!mod && !e.altKey) {
+    if (k === 'p') setTool('pen'); else if (k === 'm') setTool('marker'); else if (k === 'e') setTool('eraser');
+    else if (e.key === 'PageDown') $('nextBtn').click(); else if (e.key === 'PageUp') $('prevBtn').click();
+  }
+});
+
+/* ================= Dialoge & Hinweise ================= */
+let dialogCancel = () => {};
+function dialog({ title, text, input, templates, actions, scroll, confirm, danger, cancel = 'Abbrechen' }) {
+  return new Promise(resolve => {
+    const scrim = $('scrim'), form = $('dlg');
+    form.textContent = '';
+    const h = document.createElement('h2'); h.id = 'dlgTitle'; h.textContent = title; form.appendChild(h);
+    if (text) { const p = document.createElement('p'); p.textContent = text; form.appendChild(p); }
+    let inp = null, tpl = templates ? 'grid' : null, fmt = templates ? 'a4' : null;
+    if (input) {
+      const l = document.createElement('label'); l.className = 'field'; l.textContent = input.label;
+      inp = document.createElement('input'); inp.type = 'text'; inp.id = 'dlgInput'; inp.value = input.value || ''; inp.maxLength = 80;
+      inp.autocomplete = 'off'; l.appendChild(inp); form.appendChild(l);
+    }
+    if (templates) {
+      const l = document.createElement('div'); l.className = 'field'; l.textContent = 'Papier';
+      const g = document.createElement('div'); g.className = 'tpl-grid';
+      TEMPLATES.forEach(t => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'tpl'; b.setAttribute('aria-pressed', String(t.id === tpl));
+        b.innerHTML = `<span class="sheet ${t.id}"></span><span>${t.name.replace(' ', '<br>')}</span>`;
+        b.onclick = () => { tpl = t.id; g.querySelectorAll('.tpl').forEach(x => x.setAttribute('aria-pressed', String(x === b))); };
+        g.appendChild(b);
+      });
+      l.appendChild(g); form.appendChild(l);
+      const l2 = document.createElement('div'); l2.className = 'field'; l2.textContent = 'Format';
+      const g2 = document.createElement('div'); g2.className = 'tpl-grid';
+      FORMATS.forEach(f => {
+        const b = fmtButton(f); b.setAttribute('aria-pressed', String(f.id === fmt));
+        b.onclick = () => { fmt = f.id; g2.querySelectorAll('.tpl').forEach(x => x.setAttribute('aria-pressed', String(x === b))); };
+        g2.appendChild(b);
+      });
+      l2.appendChild(g2); form.appendChild(l2);
+    }
+    const done = val => { scrim.hidden = true; form.onsubmit = null; dialogCancel = () => {}; resolve(val); };
+    if (actions) {
+      const list = document.createElement('div'); list.className = 'action-list' + (scroll ? ' scroll' : '');
+      actions.forEach(a => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'menu-item' + (a.danger ? ' danger' : '') + (a.current ? ' current' : '');
+        if (a.n) { b.innerHTML = '<span class="page-row"><span class="pr-t"></span><span class="pr-n"></span></span>'; b.querySelector('.pr-t').textContent = a.label; b.querySelector('.pr-n').textContent = 'S. ' + a.n; if (a.current) b.setAttribute('aria-current', 'page'); }
+        else b.textContent = a.label;
+        b.onclick = () => done(a.id); list.appendChild(b);
+      });
+      setTimeout(() => { const c = list.querySelector('.current'); if (c) c.scrollIntoView({ block: 'nearest' }); }, 0);
+      form.appendChild(list);
+    }
+    const row = document.createElement('div'); row.className = 'dlg-actions';
+    const c = document.createElement('button'); c.type = 'button'; c.className = 'btn'; c.textContent = cancel; c.onclick = () => done(null);
+    row.appendChild(c);
+    if (confirm) {
+      const ok = document.createElement('button'); ok.type = 'submit'; ok.className = 'btn ' + (danger ? 'danger' : 'primary'); ok.textContent = confirm;
+      row.appendChild(ok);
+    }
+    form.appendChild(row);
+    form.onsubmit = ev => { ev.preventDefault(); done({ value: inp ? inp.value.trim() : null, template: tpl, format: fmt }); };
+    dialogCancel = () => done(null);
+    scrim.hidden = false;
+    setTimeout(() => { if (inp) { inp.focus(); inp.select(); } }, 30);
+  });
+}
+$('scrim').addEventListener('pointerdown', e => { if (e.target === $('scrim')) dialogCancel(); });
+
+let toastTimer = null;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
+}
+function showHintOnce() {
+  if (lsGet('tabula.hintSeen', false)) return;
+  const h = $('hint'); h.hidden = false; h.style.opacity = '1';
+}
+function hideHint() {
+  const h = $('hint'); if (h.hidden) return;
+  lsSet('tabula.hintSeen', true); h.style.opacity = '0'; setTimeout(() => { h.hidden = true; }, 400);
+}
+
+/* ================= Bibliothek ================= */
+const fmtTime = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' });
+const fmtDate = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short', year: 'numeric' });
+function when(ts) {
+  const d = new Date(ts), n = new Date();
+  if (d.toDateString() === n.toDateString()) return 'heute, ' + fmtTime.format(d);
+  const y = new Date(n); y.setDate(n.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return 'gestern, ' + fmtTime.format(d);
+  return fmtDate.format(d);
+}
+async function showLibrary() {
+  S.view = 'library'; S.page = null; S.nb = null; ink = null; eraser = null; touches.clear(); gesture = null;
+  $('editor').hidden = true; $('library').hidden = false;
+  const nbs = (await Store.getAll('notebooks')).filter(n => !n.deleted).sort((a, b) => b.u - a.u);
+  const grid = $('nbGrid'); grid.textContent = '';
+  $('emptyState').hidden = nbs.length > 0;
+  grid.hidden = !nbs.length;
+  for (const nb of nbs) {
+    const art = document.createElement('article'); art.className = 'nb';
+    const open = document.createElement('button'); open.type = 'button'; open.className = 'nb-open';
+    open.setAttribute('aria-label', 'Öffnen: ' + nb.title);
+    const cv = document.createElement('canvas'); cv.className = 'thumb'; cv.width = 420; cv.height = 594;
+    open.appendChild(cv); open.onclick = () => openNotebook(nb.id);
+    const meta = document.createElement('div'); meta.className = 'nb-meta';
+    const tx = document.createElement('div'); tx.className = 'nb-text';
+    const h = document.createElement('h2'); h.className = 'nb-title'; h.textContent = nb.title;
+    const p = document.createElement('p'); p.className = 'nb-sub';
+    const n = nb.pageIds.length; p.textContent = `${n} ${n === 1 ? 'Seite' : 'Seiten'} · ${when(nb.u)}`;
+    tx.append(h, p);
+    const more = document.createElement('button'); more.type = 'button'; more.className = 'icon-btn';
+    more.setAttribute('aria-label', 'Optionen für ' + nb.title);
+    more.innerHTML = '<svg class="i"><use href="#i-more"/></svg>';
+    more.onclick = () => notebookActions(nb);
+    meta.append(tx, more);
+    art.append(open, meta);
+    grid.appendChild(art);
+    drawThumb(cv, nb);
+  }
+}
+async function drawThumb(cv, nb) {
+  const pid = nb.pageIds[0]; if (!pid) return;
+  const [page, strokes] = await Promise.all([Store.get('pages', pid), Store.getAll('strokes', 'pageId', pid)]);
+  if (!page) return;
+  strokes.sort((a, b) => a.t - b.t);
+  const f = fmtOf(page);
+  if (f.w > f.h) { cv.width = 420; cv.height = Math.round(420 * f.h / f.w); }
+  cv.style.aspectRatio = `${f.w} / ${f.h}`;
+  const ctx = cv.getContext('2d'), k = cv.width / f.w;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.fillStyle = PAPER; ctx.fillRect(0, 0, f.w, f.h);
+  drawTemplate(ctx, page.template, k, f.w, f.h);
+  drawStrokes(ctx, strokes, null, buildEntry);
+}
+async function notebookActions(nb) {
+  const a = await dialog({ title: nb.title, actions: [{ id: 'rename', label: 'Umbenennen' }, { id: 'delete', label: 'Löschen', danger: true }] });
+  if (a === 'rename') { await renameNotebook(nb); showLibrary(); }
+  if (a === 'delete') {
+    const ok = await dialog({ title: 'Notizbuch löschen?', text: `„${nb.title}“ mit ${nb.pageIds.length} ${nb.pageIds.length === 1 ? 'Seite' : 'Seiten'} wird entfernt.`, confirm: 'Löschen', danger: true });
+    if (!ok) return;
+    nb.deleted = 1; nb.u = Date.now(); await save('notebooks', nb);
+    toast('Notizbuch gelöscht'); showLibrary();
+  }
+}
+async function renameNotebook(nb) {
+  if (!nb) return;
+  const r = await dialog({ title: 'Umbenennen', input: { label: 'Name', value: nb.title }, confirm: 'Sichern' });
+  if (!r || !r.value) return;
+  nb.title = r.value; nb.u = Date.now();
+  await save('notebooks', nb);
+  if (S.nb && S.nb.id === nb.id) { S.nb.title = nb.title; $('nbTitle').textContent = nb.title; }
+}
+async function newNotebook() {
+  const count = (await Store.getAll('notebooks')).filter(n => !n.deleted).length;
+  const r = await dialog({ title: 'Neues Notizbuch', input: { label: 'Name', value: `Notizbuch ${count + 1}` }, templates: true, confirm: 'Anlegen' });
+  if (!r) return;
+  const now = Date.now();
+  const page = { id: uid(), notebookId: null, template: r.template || 'grid', format: r.format || 'a4', t: now, u: now };
+  const nb = { id: uid(), title: r.value || `Notizbuch ${count + 1}`, pageIds: [page.id], t: now, u: now, deleted: 0 };
+  page.notebookId = nb.id;
+  await save('pages', page); await save('notebooks', nb);
+  openNotebook(nb.id);
+}
+$('newNbBtn').onclick = newNotebook;
+$('emptyNewBtn').onclick = newNotebook;
+
+/* ================= Editor ================= */
+async function openNotebook(id, index = 0) {
+  const nb = await Store.get('notebooks', id); if (!nb) return;
+  const pages = await Store.getAll('pages', 'notebookId', id);
+  const map = new Map(pages.map(p => [p.id, p]));
+  S.nb = nb;
+  S.pages = nb.pageIds.map(pid => map.get(pid)).filter(p => p && !p.deleted);
+  if (!S.pages.length) {
+    const now = Date.now();
+    const p = { id: uid(), notebookId: nb.id, template: 'grid', t: now, u: now };
+    S.pages = [p]; nb.pageIds = [p.id];
+    await save('pages', p); await save('notebooks', nb);
+  }
+  S.view = 'editor';
+  $('library').hidden = true; $('editor').hidden = false;
+  renderToolbar();
+  resize();
+  await gotoPage(Math.min(index, S.pages.length - 1));
+  showHintOnce();
+}
+async function gotoPage(i) {
+  flushMeta();
+  const token = ++S.loadToken;
+  const page = S.pages[i];
+  const strokes = await Store.getAll('strokes', 'pageId', page.id);
+  if (token !== S.loadToken) return;
+  strokes.sort((a, b) => a.t - b.t);
+  S.pi = i; S.page = page; S.strokes = strokes;
+  S.byId = new Map(strokes.map(s => [s.id, s])); S.cache.clear();
+  const f = fmtOf(page); PW = f.w; PH = f.h;
+  fitView(PW > PH ? 'page' : 'width');
+  renderPageUI(); renderBg(); clearLive();
+}
+async function addPage() {
+  if (!S.page) return;
+  flushMeta();
+  const now = Date.now();
+  const p = { id: uid(), notebookId: S.nb.id, template: S.page.template, format: S.page.format || 'a4', t: now, u: now };
+  S.pages.splice(S.pi + 1, 0, p);
+  S.nb.pageIds = S.pages.map(x => x.id); S.nb.u = now;
+  await save('pages', p); await save('notebooks', S.nb);
+  await gotoPage(S.pi + 1);
+}
+async function deletePage() {
+  if (!S.page) return;
+  if (S.pages.length <= 1) { toast('Ein Notizbuch braucht mindestens eine Seite.'); return; }
+  const live = S.strokes.filter(s => !s.deleted).length;
+  const ok = await dialog({ title: `Seite ${S.pi + 1} löschen?`, text: live ? `Die Seite und ihre ${live} Striche werden entfernt.` : 'Die leere Seite wird entfernt.', confirm: 'Löschen', danger: true });
+  if (!ok) return;
+  const p = S.page; p.deleted = 1; p.u = Date.now();
+  S.pages.splice(S.pi, 1);
+  S.nb.pageIds = S.pages.map(x => x.id); S.nb.u = Date.now();
+  S.hist.delete(p.id);
+  await save('pages', p); await save('notebooks', S.nb);
+  await gotoPage(Math.min(S.pi, S.pages.length - 1));
+  toast('Seite gelöscht');
+}
+
+new ResizeObserver(() => {
+  if (S.view !== 'editor') return;
+  const keep = S.fitMode;
+  resize();
+  if (keep) fitView(keep); else clampView();
+  renderBg(); requestLive();
+}).observe(stage);
+const themeChanged = () => { if (S.view === 'editor') requestBg(); };
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeChanged); } catch (e) {}
+new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+/* ================= Export, Backup ================= */
+async function saveFile(blob, name) {
+  try {
+    const file = new File([blob], name, { type: blob.type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+const stamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+const slug = s => (s || 'notizbuch').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'notizbuch';
+
+async function exportPagePNG() {
+  if (!S.page) return;
+  const k = Math.min(1, 4096 / Math.max(PW, PH)); // iPad-Grenze für Canvas-Größe
+  const c = document.createElement('canvas'); c.width = Math.round(PW * k); c.height = Math.round(PH * k);
+  const ctx = c.getContext('2d');
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.fillStyle = PAPER; ctx.fillRect(0, 0, PW, PH);
+  drawTemplate(ctx, S.page.template, k, PW, PH);
+  drawStrokes(ctx, S.strokes, null);
+  const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+  if (blob) await saveFile(blob, `${slug(S.nb.title)}-seite-${S.pi + 1}.png`);
+}
+async function exportBackup() {
+  flushMeta();
+  const [notebooks, pages, strokes] = await Promise.all([Store.getAll('notebooks'), Store.getAll('pages'), Store.getAll('strokes')]);
+  const data = { app: 'tabula', version: 1, exported: new Date().toISOString(), notebooks, pages, strokes };
+  await saveFile(new Blob([JSON.stringify(data)], { type: 'application/json' }), `tabula-backup-${stamp()}.json`);
+}
+async function importBackup(file) {
+  let data;
+  try { data = JSON.parse(await file.text()); } catch (e) { toast('Die Datei ist kein lesbares Tabula-Backup.'); return; }
+  if (!data || data.app !== 'tabula' || !Array.isArray(data.notebooks)) { toast('Die Datei ist kein Tabula-Backup.'); return; }
+  const merge = async (store, items) => {
+    const cur = new Map((await Store.getAll(store)).map(x => [x.id, x]));
+    const out = [];
+    for (const it of items || []) {
+      if (!it || !it.id) continue;
+      const ex = cur.get(it.id);
+      if (!ex) { out.push(it); continue; }
+      const newer = (it.u || 0) > (ex.u || 0) ? it : ex, older = newer === it ? ex : it;
+      if (store === 'notebooks') {
+        const ids = [...(newer.pageIds || [])];
+        for (const p of older.pageIds || []) if (!ids.includes(p)) ids.push(p);
+        const merged = { ...newer, pageIds: ids };
+        if (JSON.stringify(merged) !== JSON.stringify(ex)) out.push(merged);
+      } else if (newer === it) out.push(it);
+    }
+    await Store.put(store, out);
+    return out.length;
+  };
+  try {
+    await merge('pages', data.pages); await merge('strokes', data.strokes);
+    const n = await merge('notebooks', data.notebooks);
+    toast(n ? `Backup geladen, ${n} ${n === 1 ? 'Notizbuch' : 'Notizbücher'} aktualisiert` : 'Backup geladen, alles war schon aktuell');
+  } catch (e) { console.error(e); toast('Das Backup konnte nicht vollständig geladen werden.'); }
+  showLibrary();
+}
+$('exportBtn').onclick = exportBackup;
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) importBackup(f); };
+
+/* ================= Beispielheft beim ersten Start ================= */
+function seedStrokes(pageId) {
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const out = [], t0 = Date.now(), [BLACK, BLUE, RED] = TOOLS.pen.colors;
+  const add = (tool, color, size, pts, jit = 1) => {
+    const flat = [];
+    for (const [x, y] of pts) flat.push(r1(x + (rnd() - 0.5) * 2 * jit), r1(y + (rnd() - 0.5) * 2 * jit), 0.5);
+    out.push({ id: uid(), pageId, tool, color, size, pr: 0, pts: flat, deleted: 0, t: t0 + out.length, u: t0 + out.length });
+  };
+  const dens = (pts, step = 7) => {
+    const o = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
+      for (let k = 1; k <= n; k++) o.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+    }
+    return o;
+  };
+  const curve = pts => {
+    const P = [pts[0], ...pts, pts[pts.length - 1]], o = [];
+    for (let i = 1; i < P.length - 2; i++) {
+      const [p0, p1, p2, p3] = [P[i - 1], P[i], P[i + 1], P[i + 2]];
+      for (let s = 0; s < 6; s++) {
+        const u = s / 6, u2 = u * u, u3 = u2 * u;
+        const f = j => 0.5 * (2 * p1[j] + (-p0[j] + p2[j]) * u + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * u2 + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * u3);
+        o.push([f(0), f(1)]);
+      }
+    }
+    o.push(pts[pts.length - 1]);
+    return dens(o, 6);
+  };
+  const arc = (cx, cy, rx, ry, a0, a1, n = 24) => Array.from({ length: n + 1 }, (_, i) => { const a = a0 + (a1 - a0) * i / n; return [cx + rx * Math.cos(a), cy + ry * Math.sin(a)]; });
+  const two = () => [...curve([[12, -58], [20, -72], [36, -78], [51, -70], [54, -54], [44, -36], [12, 0]]), ...dens([[12, 0], [58, 0]]).slice(1)];
+  const G = {
+    'f': [64, [curve([[60, -86], [50, -95], [37, -92], [30, -78], [30, -40], [30, -6], [26, 18]]), dens([[12, -52], [52, -52]])]],
+    '(': [38, [arc(44, -38, 22, 56, Math.PI * 1.36, Math.PI * 0.64)]],
+    ')': [38, [arc(4, -38, 22, 56, -Math.PI * 0.36, Math.PI * 0.36)]],
+    'x': [60, [dens([[10, -54], [52, 0]]), dens([[52, -54], [10, 0]])]],
+    '=': [68, [dens([[10, -50], [58, -50]]), dens([[10, -24], [58, -24]])]],
+    '0': [62, [arc(32, -38, 21, 38, -Math.PI / 2, Math.PI * 1.5 + 0.25, 30)]],
+    ',': [22, [dens([[12, -6], [6, 14]], 4)]],
+    '5': [64, [dens([[54, -76], [22, -76], [19, -44]]), curve([[19, -44], [32, -50], [48, -45], [55, -27], [48, -7], [31, 0], [13, -7]])]],
+    '2': [64, [two()]],
+    '−': [58, [dens([[10, -32], [48, -32]])]],
+    'S': [62, [curve([[52, -68], [40, -78], [22, -74], [16, -58], [28, -44], [46, -34], [52, -18], [44, -3], [26, 1], [11, -8]])]],
+    'y': [60, [dens([[10, -54], [33, -12]]), curve([[54, -54], [40, -16], [28, 10], [18, 20]])]],
+    '1': [44, [dens([[14, -60], [30, -76], [30, 0]])]],
+    ' ': [28, []]
+  };
+  const write = (str, x0, y0, sc, color, size) => {
+    let x = x0;
+    for (const ch of str) {
+      const sup = ch === '²';
+      const g = G[sup ? '2' : ch]; if (!g) continue;
+      const k = sup ? sc * 0.55 : sc, dy = sup ? -46 * sc : 0;
+      for (const st of g[1]) add('pen', color, size, st.map(([px, py]) => [x + (px - py * 0.14) * k, y0 + dy + py * k]), 0.8);
+      x += g[0] * k;
+    }
+    return x;
+  };
+  // Überschrift mit Marker darunter
+  add('marker', TOOLS.marker.colors[0], 62, dens([[218, 372], [560, 368], [900, 371]], 10), 1.5);
+  write('f(x) = 0,5x² − 2', 232, 400, 0.8, BLACK, 9);
+  // Koordinatensystem, Ursprung (1050|1350), 1 Einheit = 2 Kästchen
+  const O = [1050, 1350];
+  add('pen', BLACK, 6, dens([[350, O[1]], [1800, O[1]]], 9));
+  add('pen', BLACK, 6, dens([[1768, O[1] - 16], [1800, O[1]], [1768, O[1] + 16]], 5));
+  add('pen', BLACK, 6, dens([[O[0], 2050], [O[0], 620]], 9));
+  add('pen', BLACK, 6, dens([[O[0] - 16, 652], [O[0], 620], [O[0] + 16, 652]], 5));
+  for (let i = -6; i <= 7; i++) if (i) add('pen', BLACK, 5, dens([[O[0] + i * 100, O[1] - 10], [O[0] + i * 100, O[1] + 10]], 4), 0.6);
+  for (let i = -6; i <= 7; i++) if (i) add('pen', BLACK, 5, dens([[O[0] - 10, O[1] - i * 100], [O[0] + 10, O[1] - i * 100]], 4), 0.6);
+  write('x', 1788, 1415, 0.6, BLACK, 6);
+  write('y', 1078, 640, 0.6, BLACK, 6);
+  write('1', 1138, 1416, 0.5, BLACK, 5);
+  write('1', 1002, 1272, 0.5, BLACK, 5);
+  // Parabel
+  const par = [];
+  for (let x = -3.15; x <= 3.151; x += 0.05) par.push([O[0] + x * 100, O[1] + 200 - 50 * x * x]);
+  add('pen', BLUE, 9, par, 0.6);
+  // Nullstellen und Scheitel
+  for (const zx of [850, 1250]) { add('pen', RED, 7, dens([[zx - 14, O[1] - 14], [zx + 14, O[1] + 14]], 4), 0.5); add('pen', RED, 7, dens([[zx + 14, O[1] - 14], [zx - 14, O[1] + 14]], 4), 0.5); }
+  add('pen', RED, 7, arc(O[0], O[1] + 200, 40, 36, -0.4, Math.PI * 2 + 0.25, 36), 0.8);
+  write('S', 1106, 1650, 0.62, RED, 7);
+  return out;
+}
+async function seedExample() {
+  const now = Date.now();
+  const p1 = { id: uid(), notebookId: null, template: 'grid', t: now, u: now };
+  const p2 = { id: uid(), notebookId: null, template: 'lined', t: now + 1, u: now + 1 };
+  const nb = { id: uid(), title: 'Beispielheft', pageIds: [p1.id, p2.id], t: now, u: now, deleted: 0 };
+  p1.notebookId = p2.notebookId = nb.id;
+  await Store.put('pages', [p1, p2]);
+  await Store.put('strokes', seedStrokes(p1.id));
+  await Store.put('notebooks', nb);
+}
+
+/* ================= Start ================= */
+async function boot() {
+  loadPrefs();
+  renderToolbar();
+  const persistent = await Store.init();
+  const note = $('storageNote');
+  if (!persistent) {
+    note.textContent = 'Speichern ist hier nicht möglich. Was du schreibst, geht beim Schließen verloren.';
+    note.hidden = false;
+  } else if (EMBEDDED) {
+    note.textContent = 'Testversion: Prüfe hier, wie sich der Pencil anfühlt. Notizen bleiben nur in dieser Ansicht und können verschwinden. Für den Alltag nutzt du die Version in a-Shell, dort gibt es auch Backups und den Bild-Export.';
+    note.hidden = false;
+  }
+  if (EMBEDDED) { $('exportBtn').hidden = true; $('importBtn').hidden = true; $('pngBtn').hidden = true; }
+  if (persistent && !EMBEDDED) { try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) {} }
+  try {
+    const all = await Store.getAll('notebooks');
+    if (!all.length) await seedExample();
+  } catch (e) { console.error(e); }
+  await showLibrary();
+  if (!EMBEDDED && 'serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+}
+window.__tabula = { S, Store }; // für Tests
+boot();
+})();
+</script>
+
+</body>
+</html>
