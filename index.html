@@ -255,7 +255,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
         <button class="tool" type="button" data-tool="select" title="Auswahl (S)"><svg class="i"><use href="#i-select"/></svg><span>Auswahl</span></button>
       </div>
       <div class="tb-group">
-        <button class="icon-btn" id="imgBtn" type="button" aria-label="Bild einfügen" title="Bild einfügen"><svg class="i"><use href="#i-image"/></svg></button>
+        <button class="icon-btn" id="imgBtn" type="button" aria-label="Bild oder PDF einfügen" title="Bild oder PDF einfügen"><svg class="i"><use href="#i-image"/></svg></button>
       </div>
       <div class="tb-group" id="swatches" role="group" aria-label="Farbe"></div>
       <div class="tb-group" id="sizes" role="group" aria-label="Strichstärke"></div>
@@ -1040,7 +1040,18 @@ $('nextBtn').onclick = () => { if (S.pi < S.pages.length - 1) gotoPage(S.pi + 1)
 $('addPageBtn').onclick = addPage;
 $('backBtn').onclick = () => { flushMeta(); closeMenu(); showLibrary(); };
 $('titleBtn').onclick = () => renameNotebook(S.nb);
-$('imgBtn').onclick = () => { closeMenu(); pickImage(2000).then(a => { if (a) insertImage(a); }); };
+$('imgBtn').onclick = () => {
+  closeMenu();
+  const inp = $('pickFile'); inp.value = '';
+  inp.accept = EMBEDDED ? 'image/*' : 'image/*,application/pdf,.pdf';
+  inp.onchange = async () => {
+    const f = inp.files && inp.files[0]; inp.value = ''; inp.accept = 'image/*';
+    if (!f) return;
+    if (/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)) { insertPdfPages(f); return; }
+    try { insertImage(await fileToImage(f, 2000)); } catch (e) { toast('Dieses Bild lässt sich nicht öffnen.'); }
+  };
+  inp.click();
+};
 
 /* Bild auswählen und für den Speicher verkleinern */
 function fileToImage(file, max) {
@@ -1063,7 +1074,7 @@ function fileToImage(file, max) {
 }
 function pickImage(max) {
   return new Promise(res => {
-    const inp = $('pickFile'); inp.value = '';
+    const inp = $('pickFile'); inp.value = ''; inp.accept = 'image/*';
     inp.onchange = async () => {
       const f = inp.files && inp.files[0]; inp.value = '';
       if (!f) return res(null);
@@ -1606,39 +1617,59 @@ function loadPdfJs() {
   });
   return pdfjsP;
 }
+/* PDF-Seiten als Seiten im Originalformat anlegen; liefert die neuen Seiten */
+async function pdfToPages(lib, file, notebookId) {
+  let doc;
+  try { doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise; }
+  catch (e) { toast(`„${file.name}“ lässt sich nicht öffnen.`); return []; }
+  const name = file.name.replace(/\.pdf$/i, '') || 'PDF', now = Date.now(), pages = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    toast(`${name}: Seite ${i} von ${doc.numPages}`);
+    const pg = await doc.getPage(i);
+    const v1 = pg.getViewport({ scale: 1 });
+    const vp = pg.getViewport({ scale: Math.min(3, 2000 / Math.max(v1.width, v1.height)) });
+    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+    await pg.render({ canvasContext: ctx, viewport: vp }).promise;
+    const t = now + i, w = Math.round(v1.width * 254 / 72), h = Math.round(v1.height * 254 / 72);
+    const asset = { id: uid(), data: c.toDataURL('image/jpeg', 0.85), w: c.width, h: c.height, t, u: t };
+    const page = { id: uid(), notebookId, template: 'blank', format: 'custom', w, h, t, u: t, title: doc.numPages > 1 ? `${name} ${i}` : name };
+    const img = { id: uid(), pageId: page.id, tool: 'image', bg: 1, asset: asset.id, x: 0, y: 0, w, h, pts: [], deleted: 0, t, u: t };
+    await save('assets', asset); await save('pages', page); await save('strokes', img);
+    pages.push(page);
+    c.width = c.height = 0; try { pg.cleanup(); } catch (e) {}
+  }
+  try { doc.destroy(); } catch (e) {}
+  return pages;
+}
 async function importPdfs(files) {
   let lib;
   try { lib = await loadPdfJs(); } catch (e) { toast('Der PDF-Leser ließ sich nicht laden. Prüfe die Internetverbindung.'); return; }
   const existing = (await Store.getAll('notebooks')).filter(n => !n.deleted).length;
   let done = 0;
   for (const [fi, file] of files.entries()) {
-    let doc;
-    try { doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise; }
-    catch (e) { toast(`„${file.name}“ lässt sich nicht öffnen.`); continue; }
-    const now = Date.now(), name = file.name.replace(/\.pdf$/i, '') || 'PDF';
-    const nb = { id: uid(), title: name, pageIds: [], t: now, u: now, deleted: 0,
+    const now = Date.now();
+    const nb = { id: uid(), title: file.name.replace(/\.pdf$/i, '') || 'PDF', pageIds: [], t: now, u: now, deleted: 0,
                  cover: { color: COVERS[(existing + fi) % COVERS.length].id } };
-    for (let i = 1; i <= doc.numPages; i++) {
-      toast(`${name}: Seite ${i} von ${doc.numPages}`);
-      const pg = await doc.getPage(i);
-      const v1 = pg.getViewport({ scale: 1 });
-      const vp = pg.getViewport({ scale: Math.min(3, 2000 / Math.max(v1.width, v1.height)) });
-      const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
-      const ctx = c.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
-      await pg.render({ canvasContext: ctx, viewport: vp }).promise;
-      const t = now + i, w = Math.round(v1.width * 254 / 72), h = Math.round(v1.height * 254 / 72);
-      const asset = { id: uid(), data: c.toDataURL('image/jpeg', 0.85), w: c.width, h: c.height, t, u: t };
-      const page = { id: uid(), notebookId: nb.id, template: 'blank', format: 'custom', w, h, t, u: t };
-      const img = { id: uid(), pageId: page.id, tool: 'image', bg: 1, asset: asset.id, x: 0, y: 0, w, h, pts: [], deleted: 0, t, u: t };
-      await Store.put('assets', asset); await Store.put('pages', page); await Store.put('strokes', img);
-      nb.pageIds.push(page.id);
-      c.width = c.height = 0; try { pg.cleanup(); } catch (e) {}
-    }
-    if (nb.pageIds.length) { await Store.put('notebooks', nb); done++; }
-    try { doc.destroy(); } catch (e) {}
+    const pages = await pdfToPages(lib, file, nb.id);
+    if (pages.length) { nb.pageIds = pages.map(p => p.id); await save('notebooks', nb); done++; }
   }
   toast(done ? `${done} ${done === 1 ? 'PDF' : 'PDFs'} importiert` : 'Kein PDF importiert');
   showLibrary();
+}
+/* PDF im offenen Notizbuch hinter der aktuellen Seite einfügen */
+async function insertPdfPages(file) {
+  if (!S.nb || !S.page) return;
+  let lib;
+  try { lib = await loadPdfJs(); } catch (e) { toast('Der PDF-Leser ließ sich nicht laden. Prüfe die Internetverbindung.'); return; }
+  flushMeta();
+  const pages = await pdfToPages(lib, file, S.nb.id);
+  if (!pages.length) return;
+  S.pages.splice(S.pi + 1, 0, ...pages);
+  S.nb.pageIds = S.pages.map(p => p.id); S.nb.u = Date.now();
+  await save('notebooks', S.nb);
+  await gotoPage(S.pi + 1);
+  toast(pages.length === 1 ? 'PDF als neue Seite eingefügt' : `${pages.length} PDF-Seiten eingefügt`);
 }
 $('pdfBtn').onclick = () => $('pdfFile').click();
 $('pdfFile').onchange = e => { const fs = [...(e.target.files || [])]; e.target.value = ''; if (fs.length) importPdfs(fs); };
