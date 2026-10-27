@@ -1188,7 +1188,7 @@ document.addEventListener('keydown', e => {
 
 /* ================= Dialoge & Hinweise ================= */
 let dialogCancel = () => {};
-function dialog({ title, text, input, covers, templates, actions, scroll, confirm, danger, cancel = 'Abbrechen' }) {
+function dialog({ title, text, input, fields, covers, templates, actions, scroll, confirm, danger, cancel = 'Abbrechen' }) {
   return new Promise(resolve => {
     const scrim = $('scrim'), form = $('dlg');
     form.textContent = '';
@@ -1199,6 +1199,13 @@ function dialog({ title, text, input, covers, templates, actions, scroll, confir
       const l = document.createElement('label'); l.className = 'field'; l.textContent = input.label;
       inp = document.createElement('input'); inp.type = 'text'; inp.id = 'dlgInput'; inp.value = input.value || ''; inp.maxLength = 80;
       inp.autocomplete = 'off'; l.appendChild(inp); form.appendChild(l);
+    }
+    const fieldEls = {};
+    for (const f of fields || []) {
+      const l = document.createElement('label'); l.className = 'field'; l.textContent = f.label;
+      const el = document.createElement('input'); el.type = f.type || 'text'; el.id = 'dlg-' + f.id; el.value = f.value || '';
+      el.autocomplete = 'off'; el.autocapitalize = 'off'; el.spellcheck = false; if (f.placeholder) el.placeholder = f.placeholder;
+      l.appendChild(el); form.appendChild(l); fieldEls[f.id] = el;
     }
     let cov = covers ? covers.value || 'none' : null, covImg = null;
     if (covers) {
@@ -1266,7 +1273,7 @@ function dialog({ title, text, input, covers, templates, actions, scroll, confir
       row.appendChild(ok);
     }
     form.appendChild(row);
-    form.onsubmit = ev => { ev.preventDefault(); done({ value: inp ? inp.value.trim() : null, template: tpl, format: fmt, cover: cov, coverImg: covImg }); };
+    form.onsubmit = ev => { ev.preventDefault(); done({ value: inp ? inp.value.trim() : null, template: tpl, format: fmt, cover: cov, coverImg: covImg, fields: Object.fromEntries(Object.entries(fieldEls).map(([k, el]) => [k, el.value.trim()])) }); };
     dialogCancel = () => done(null);
     scrim.hidden = false;
     setTimeout(() => { if (inp) { inp.focus(); inp.select(); } }, 30);
@@ -1545,10 +1552,7 @@ async function exportBackup() {
   lsSet('tabula.lastBackup', Date.now());
   if (S.view === 'library') renderLibStatus();
 }
-async function importBackup(file) {
-  let data;
-  try { data = JSON.parse(await file.text()); } catch (e) { toast('Die Datei ist kein lesbares Tabula-Backup.'); return; }
-  if (!data || data.app !== 'tabula' || !Array.isArray(data.notebooks)) { toast('Die Datei ist kein Tabula-Backup.'); return; }
+async function mergeData(data) {
   const merge = async (store, items) => {
     const cur = new Map((await Store.getAll(store)).map(x => [x.id, x]));
     const out = [];
@@ -1567,10 +1571,18 @@ async function importBackup(file) {
     await Store.put(store, out);
     return out.length;
   };
+  if (data.assets) await merge('assets', data.assets);
+  const changed = (await merge('pages', data.pages)) + (await merge('strokes', data.strokes));
+  const n = await merge('notebooks', data.notebooks);
+  return { notebooks: n, total: changed + n };
+}
+async function importBackup(file) {
+  let data;
+  try { data = JSON.parse(await file.text()); } catch (e) { toast('Die Datei ist kein lesbares Tabula-Backup.'); return; }
+  if (!data || data.app !== 'tabula' || !Array.isArray(data.notebooks)) { toast('Die Datei ist kein Tabula-Backup.'); return; }
   try {
-    await merge('assets', data.assets); await merge('pages', data.pages); await merge('strokes', data.strokes);
-    const n = await merge('notebooks', data.notebooks);
-    toast(n ? `Backup geladen, ${n} ${n === 1 ? 'Notizbuch' : 'Notizbücher'} aktualisiert` : 'Backup geladen, alles war schon aktuell');
+    const n = await mergeData(data);
+    toast(n.notebooks ? `Backup geladen, ${n.notebooks} ${n.notebooks === 1 ? 'Notizbuch' : 'Notizbücher'} aktualisiert` : (n.total ? 'Backup geladen' : 'Backup geladen, alles war schon aktuell'));
   } catch (e) { console.error(e); toast('Das Backup konnte nicht vollständig geladen werden.'); }
   showLibrary();
 }
@@ -1628,9 +1640,20 @@ $('importBtn').onclick = () => $('importFile').click();
 $('importFile').onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) importBackup(f); };
 
 /* ================= Automatische Sicherung alle 20 Minuten ================= */
-const SNAP_EVERY = 20 * 60 * 1000, SNAP_KEEP = 18;      // 18 Stände ≈ 6 Stunden Arbeit
+const SNAP_EVERY = 2 * 60 * 1000;   // alle 2 Minuten; aufbewahrt: 15 neueste, dann stündlich (12 h), dann täglich (7 Tage)
 let dirty = false;
-function markDirty() { if (!dirty) { dirty = true; lsSet('tabula.dirtySince', Date.now()); } }
+function markDirty() { if (!dirty) { dirty = true; lsSet('tabula.dirtySince', Date.now()); } gitDirty = true; }
+let gitDirty = false;
+function snapsToDrop(all) {
+  const now = Date.now(), keep = new Set(), hours = new Set(), days = new Set();
+  all.forEach((x, i) => {
+    const age = now - x.t;
+    if (i < 15) keep.add(x.id);
+    else if (age < 12 * 3600e3) { const h = Math.floor(x.t / 3600e3); if (!hours.has(h)) { hours.add(h); keep.add(x.id); } }
+    else if (age < 7 * 86400e3) { const d = new Date(x.t).toDateString(); if (!days.has(d)) { days.add(d); keep.add(x.id); } }
+  });
+  return all.filter(x => !keep.has(x.id)).map(x => x.id);
+}
 async function takeSnapshot(reason) {
   flushMeta();
   const [notebooks, pages, strokes] = await Promise.all([Store.getAll('notebooks'), Store.getAll('pages'), Store.getAll('strokes')]);
@@ -1640,7 +1663,7 @@ async function takeSnapshot(reason) {
                  data: { notebooks, pages, strokes } };   // Bilder ändern sich nie und bleiben ohnehin gespeichert
   await Store.put('snapshots', snap);
   const all = (await Store.getAll('snapshots')).sort((a, b) => b.t - a.t);
-  await Store.remove('snapshots', all.slice(SNAP_KEEP).map(x => x.id));
+  await Store.remove('snapshots', snapsToDrop(all));
   dirty = false; lsSet('tabula.lastSnap', now); lsSet('tabula.dirtySince', 0);
   if (S.view === 'library') renderLibStatus();
   return snap;
@@ -1650,19 +1673,25 @@ async function autosaveTick() {
   const last = lsGet('tabula.lastSnap', 0);
   const pending = dirty || lsGet('tabula.dirtySince', 0) > 0;
   if (pending && Date.now() - last >= SNAP_EVERY) { try { await takeSnapshot('auto'); } catch (e) { console.error(e); } }
+  if (gitDirty && Date.now() - lsGet('tabula.gitPush', 0) >= SNAP_EVERY) gitPush();
 }
 function renderLibStatus() {
   const el = $('libStatus'); if (!el) return;
   if (!Store.persistent || EMBEDDED) { el.hidden = true; return; }
   el.hidden = false;
   const snap = lsGet('tabula.lastSnap', 0), file = lsGet('tabula.lastBackup', 0);
-  el.textContent = `Automatische Sicherung alle 20 Minuten, zuletzt ${snap ? when(snap) : 'noch nie'} · Backup in Dateien ${file ? when(file) : 'noch nie'} · `;
-  const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Sicherungen anzeigen';
-  b.onclick = showSnapshots; el.appendChild(b);
+  const g = syncCfg(), gp = lsGet('tabula.gitPush', 0), ge = lsGet('tabula.gitError', '');
+  const gitText = g ? (ge ? `GitHub: ${ge}` : `GitHub ${gp ? when(gp) : 'noch nie'}`) : 'GitHub nicht verbunden';
+  el.textContent = `Sicherung alle 2 Minuten · iPad ${snap ? when(snap) : 'noch nie'} · ${gitText} · Dateien ${file ? when(file) : 'noch nie'} · `;
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Sicherungen';
+  b.onclick = showSnapshots;
+  const b2 = document.createElement('button'); b2.type = 'button'; b2.textContent = g ? 'GitHub' : 'GitHub verbinden';
+  b2.onclick = syncSettings;
+  el.append(b, ' · ', b2);
 }
 async function showSnapshots() {
   const snaps = (await Store.getAll('snapshots')).sort((a, b) => b.t - a.t);
-  if (!snaps.length) { toast('Noch keine automatische Sicherung. Die erste entsteht 20 Minuten nach deiner ersten Änderung.'); return; }
+  if (!snaps.length) { toast('Noch keine automatische Sicherung. Die erste entsteht 2 Minuten nach deiner ersten Änderung.'); return; }
   const actions = snaps.map(x => ({ id: x.id, label: `${when(x.t)} · ${x.nbCount} ${x.nbCount === 1 ? 'Notizbuch' : 'Notizbücher'}, ${x.strokeCount} Striche${x.reason === 'restore' ? ' · vor Wiederherstellung' : ''}` }));
   const id = await dialog({ title: 'Sicherungen', text: 'Wähle einen Stand, um ihn wiederherzustellen. Der aktuelle Stand wird vorher selbst gesichert.', actions, scroll: true });
   if (!id) return;
@@ -1675,8 +1704,125 @@ async function showSnapshots() {
   toast(`Stand von ${when(snap.t)} wiederhergestellt`);
   showLibrary();
 }
-setInterval(autosaveTick, 60 * 1000);
-document.addEventListener('visibilitychange', () => { if (document.hidden) autosaveTick(); });
+setInterval(autosaveTick, 30 * 1000);
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { hiddenAt = Date.now(); autosaveTick(); if (gitDirty) gitPush(); }
+  else if (hiddenAt && Date.now() - hiddenAt > 5 * 60 * 1000) gitPull(true);
+});
+
+/* ================= Sicherung in einem privaten GitHub-Repository ================= */
+const syncCfg = () => { const c = lsGet('tabula.sync', null); return c && c.repo && c.token ? c : null; };
+function gh(path, opts = {}) {
+  const c = syncCfg();
+  const headers = { Authorization: `Bearer ${c.token}`, Accept: opts.accept || 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+  if (opts.body) headers['Content-Type'] = 'application/json';
+  return fetch(`https://api.github.com/repos/${c.repo}${path}`, { method: opts.method || 'GET', headers, body: opts.body, cache: 'no-store' });
+}
+function b64(str) {
+  const bytes = new TextEncoder().encode(str); let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+const ghError = r => r.status === 401 ? 'Schlüssel ungültig oder abgelaufen' : r.status === 403 ? 'Schlüssel hat keine Schreibrechte' : r.status === 404 ? 'Repository nicht gefunden' : `Fehler ${r.status}`;
+async function putFile(path, content, message) {
+  const head = await gh(`/contents/${path}`);
+  const sha = head.ok ? (await head.json()).sha : undefined;
+  if (!head.ok && head.status !== 404) throw new Error(ghError(head));
+  const r = await gh(`/contents/${path}`, { method: 'PUT', body: JSON.stringify({ message, content, sha }) });
+  if (!r.ok) throw new Error(ghError(r));
+}
+let pushing = null;
+function gitPush() {
+  if (!syncCfg() || EMBEDDED || pushing) return pushing;
+  pushing = (async () => {
+    try {
+      gitDirty = false; flushMeta();
+      const [notebooks, pages, strokes, assets] = await Promise.all([Store.getAll('notebooks'), Store.getAll('pages'), Store.getAll('strokes'), Store.getAll('assets')]);
+      // Bilder einzeln und nur einmal hochladen
+      const sent = new Set(lsGet('tabula.gitAssets', []));
+      for (const a of assets) {
+        if (sent.has(a.id)) continue;
+        const m = /^data:([^;]+);base64,(.*)$/.exec(a.data); if (!m) continue;
+        const ext = m[1] === 'image/png' ? 'png' : 'jpg';
+        await putFile(`assets/${a.id}.${ext}`, m[2], `Bild ${a.id.slice(0, 8)}`);
+        sent.add(a.id); lsSet('tabula.gitAssets', [...sent]);
+      }
+      const index = assets.map(a => ({ id: a.id, w: a.w, h: a.h, t: a.t, u: a.u, ext: /^data:image\/png/.test(a.data) ? 'png' : 'jpg' }));
+      const data = { app: 'tabula', version: 3, saved: new Date().toISOString(), notebooks, pages, strokes, assetIndex: index };
+      const d = new Date(), p2 = n => String(n).padStart(2, '0');
+      await putFile('tabula.json', b64(JSON.stringify(data)), `Sicherung ${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`);
+      lsSet('tabula.gitPush', Date.now()); lsSet('tabula.gitError', '');
+    } catch (e) {
+      gitDirty = true; lsSet('tabula.gitError', navigator.onLine === false ? 'offline, wird nachgeholt' : (e.message || 'nicht erreichbar'));
+    } finally {
+      pushing = null;
+      if (S.view === 'library') renderLibStatus();
+    }
+  })();
+  return pushing;
+}
+async function gitPull(quiet) {
+  if (!syncCfg() || EMBEDDED) return 0;
+  try {
+    const r = await gh('/contents/tabula.json', { accept: 'application/vnd.github.raw+json' });
+    if (r.status === 404) return 0;
+    if (!r.ok) throw new Error(ghError(r));
+    const data = JSON.parse(await r.text());
+    // fehlende Bilder holen
+    const have = new Set((await Store.getAll('assets')).map(a => a.id));
+    const sent = new Set(lsGet('tabula.gitAssets', []));
+    for (const a of data.assetIndex || []) {
+      sent.add(a.id);
+      if (have.has(a.id)) continue;
+      const ar = await gh(`/contents/assets/${a.id}.${a.ext}`, { accept: 'application/vnd.github.raw+json' });
+      if (!ar.ok) continue;
+      const blob = await ar.blob();
+      const url = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+      const fixed = url.replace(/^data:[^;]*;/, `data:image/${a.ext === 'png' ? 'png' : 'jpeg'};`);
+      await Store.put('assets', { id: a.id, data: fixed, w: a.w, h: a.h, t: a.t, u: a.u });
+    }
+    lsSet('tabula.gitAssets', [...sent]);
+    const res = await mergeData(data);
+    lsSet('tabula.gitPull', Date.now()); lsSet('tabula.gitError', '');
+    if (res.total) {
+      if (S.view === 'library') showLibrary();
+      else if (S.view === 'editor' && S.nb) { const keep = { ...S.v }, pi = S.pi; await openNotebook(S.nb.id, pi); S.v = keep; renderBg(); }
+      if (!quiet) toast('Stand von GitHub geladen');
+    }
+    return res.total;
+  } catch (e) {
+    lsSet('tabula.gitError', navigator.onLine === false ? 'offline' : (e.message || 'nicht erreichbar'));
+    if (S.view === 'library') renderLibStatus();
+    return 0;
+  }
+}
+async function syncSettings() {
+  const c = lsGet('tabula.sync', null) || {};
+  const r = await dialog({
+    title: 'Sicherung auf GitHub',
+    text: 'Tabula legt deine Notizen in einem privaten Repository ab, alle 2 Minuten nach einer Änderung, und lädt beim Start den Stand von dort. Der Schlüssel bleibt nur auf diesem Gerät. Ein leeres Schlüsselfeld trennt die Verbindung.',
+    fields: [
+      { id: 'repo', label: 'Repository', value: c.repo || 'erz-mentat/tabula-daten' },
+      { id: 'token', label: 'Zugriffsschlüssel (Fine-grained Token)', value: c.token || '', type: 'password', placeholder: 'github_pat_…' }
+    ],
+    confirm: 'Sichern'
+  });
+  if (!r) return;
+  const repo = r.fields.repo.replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, ''), token = r.fields.token;
+  if (!token) { lsSet('tabula.sync', null); lsSet('tabula.gitError', ''); toast('GitHub-Sicherung getrennt'); renderLibStatus(); return; }
+  lsSet('tabula.sync', { repo, token });
+  const test = await gh('').catch(() => null);
+  if (!test || !test.ok) { lsSet('tabula.gitError', test ? ghError(test) : 'nicht erreichbar'); toast(`Verbindung fehlgeschlagen: ${test ? ghError(test) : 'GitHub nicht erreichbar'}`); renderLibStatus(); return; }
+  const info = await test.json();
+  if (!info.private) { lsSet('tabula.sync', null); toast('Das Repository ist öffentlich. Stelle es auf privat, sonst kann jeder deine Notizen lesen.'); renderLibStatus(); return; }
+  if (info.permissions && !info.permissions.push) { toast('Der Schlüssel darf nicht schreiben. Gib ihm „Contents: Read and write“.'); }
+  toast('Verbunden. Ich gleiche ab …');
+  await gitPull(true);
+  gitDirty = true; await gitPush();
+  toast(lsGet('tabula.gitError', '') ? `GitHub: ${lsGet('tabula.gitError', '')}` : 'Mit GitHub abgeglichen');
+  renderLibStatus();
+}
 
 /* ================= Beispielheft beim ersten Start ================= */
 function seedStrokes(pageId) {
@@ -1789,6 +1935,7 @@ async function boot() {
   }
   if (EMBEDDED) { $('exportBtn').hidden = true; $('importBtn').hidden = true; $('pdfBtn').hidden = true; $('pngBtn').hidden = true; $('backupMenuBtn').hidden = true; }
   if (persistent && !EMBEDDED) { try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) {} }
+  if (persistent && !EMBEDDED && syncCfg()) { toast('Lade Stand von GitHub …'); await gitPull(true); }
   try {
     const all = await Store.getAll('notebooks');
     if (!all.length) await seedExample();
