@@ -264,6 +264,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
     <button class="menu-item" id="renamePageBtn" type="button" role="menuitem"><svg class="i"><use href="#i-pen"/></svg>Seite benennen</button>
     <button class="menu-item" id="fitBtn" type="button" role="menuitem"><svg class="i"><use href="#i-fit"/></svg><span id="fitLabel">Ganze Seite zeigen</span></button>
     <button class="menu-item" id="pngBtn" type="button" role="menuitem"><svg class="i"><use href="#i-image"/></svg>Seite als Bild sichern</button>
+    <button class="menu-item" id="backupMenuBtn" type="button" role="menuitem"><svg class="i"><use href="#i-save"/></svg>Backup sichern</button>
     <button class="menu-item danger" id="delPageBtn" type="button" role="menuitem"><svg class="i"><use href="#i-trash"/></svg>Seite löschen</button>
   </div>
 
@@ -963,6 +964,7 @@ async function pageList() {
   else if (a && a[0] === 'p') { const i = +a.slice(1); if (i !== S.pi) gotoPage(i); }
 }
 $('pngBtn').onclick = () => { closeMenu(); exportPagePNG(); };
+$('backupMenuBtn').onclick = () => { closeMenu(); exportBackup(); };
 $('delPageBtn').onclick = () => { closeMenu(); deletePage(); };
 
 document.addEventListener('keydown', e => {
@@ -1219,7 +1221,7 @@ async function saveFile(blob, name) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
-const stamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+const stamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`; };
 const slug = s => (s || 'notizbuch').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'notizbuch';
 
 async function exportPagePNG() {
@@ -1232,13 +1234,14 @@ async function exportPagePNG() {
   drawTemplate(ctx, S.page.template, k, PW, PH);
   drawStrokes(ctx, S.strokes, null);
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-  if (blob) await saveFile(blob, `${slug(S.nb.title)}-seite-${S.pi + 1}.png`);
+  if (blob) await saveFile(blob, `${slug(S.nb.title)}-seite-${S.pi + 1}_${stamp()}.png`);
 }
 async function exportBackup() {
   flushMeta();
   const [notebooks, pages, strokes] = await Promise.all([Store.getAll('notebooks'), Store.getAll('pages'), Store.getAll('strokes')]);
   const data = { app: 'tabula', version: 1, exported: new Date().toISOString(), notebooks, pages, strokes };
   await saveFile(new Blob([JSON.stringify(data)], { type: 'application/json' }), `tabula-backup-${stamp()}.json`);
+  lsSet('tabula.lastBackup', Date.now());
 }
 async function importBackup(file) {
   let data;
@@ -1382,7 +1385,7 @@ async function boot() {
     note.textContent = 'Testversion: Prüfe hier, wie sich der Pencil anfühlt. Notizen bleiben nur in dieser Ansicht und können verschwinden. Für den Alltag nutzt du die Version in a-Shell, dort gibt es auch Backups und den Bild-Export.';
     note.hidden = false;
   }
-  if (EMBEDDED) { $('exportBtn').hidden = true; $('importBtn').hidden = true; $('pngBtn').hidden = true; }
+  if (EMBEDDED) { $('exportBtn').hidden = true; $('importBtn').hidden = true; $('pngBtn').hidden = true; $('backupMenuBtn').hidden = true; }
   if (persistent && !EMBEDDED) { try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) {} }
   try {
     const all = await Store.getAll('notebooks');
