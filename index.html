@@ -83,6 +83,8 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
 .btn.danger{background:var(--danger);border-color:var(--danger);color:var(--danger-fg)}
 .btn svg.i{width:18px;height:18px}
+.lib-status{margin:-12px 0 0;color:var(--muted);font-size:.84rem;font-variant-numeric:tabular-nums}
+.lib-status button{color:var(--accent);font-weight:500;text-decoration:underline;text-underline-offset:3px}
 .note{margin:0;padding:12px 14px;border-radius:11px;background:var(--accent-soft);font-size:.9rem;max-width:68ch;line-height:1.5}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:30px 22px}
 .nb{display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -230,6 +232,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
         </div>
       </header>
       <p class="note" id="storageNote" hidden></p>
+      <p class="lib-status" id="libStatus"></p>
       <div class="grid" id="nbGrid"></div>
       <div class="empty" id="emptyState" hidden>
         <h2>Noch kein Notizbuch</h2>
@@ -359,13 +362,14 @@ const Store = (() => {
   function openDB() {
     return new Promise((res, rej) => {
       let r;
-      try { r = indexedDB.open('tabula', 2); } catch (e) { rej(e); return; }
+      try { r = indexedDB.open('tabula', 3); } catch (e) { rej(e); return; }
       r.onupgradeneeded = () => {
         const d = r.result;
         if (!d.objectStoreNames.contains('notebooks')) d.createObjectStore('notebooks', { keyPath: 'id' });
         if (!d.objectStoreNames.contains('pages')) d.createObjectStore('pages', { keyPath: 'id' }).createIndex('notebookId', 'notebookId');
         if (!d.objectStoreNames.contains('strokes')) d.createObjectStore('strokes', { keyPath: 'id' }).createIndex('pageId', 'pageId');
         if (!d.objectStoreNames.contains('assets')) d.createObjectStore('assets', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('snapshots')) d.createObjectStore('snapshots', { keyPath: 'id' });
       };
       r.onsuccess = () => res(r.result);
       r.onerror = () => rej(r.error);
@@ -377,7 +381,7 @@ const Store = (() => {
       db = await Promise.race([openDB(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000))]);
       return true;
     } catch (e) {
-      mem = { notebooks: new Map(), pages: new Map(), strokes: new Map(), assets: new Map() };
+      mem = { notebooks: new Map(), pages: new Map(), strokes: new Map(), assets: new Map(), snapshots: new Map() };
       return false;
     }
   }
@@ -409,10 +413,28 @@ const Store = (() => {
       t.oncomplete = () => res(); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
     });
   }
-  return { init, getAll, get, put, get persistent() { return !mem; } };
+  function remove(store, ids) {
+    ids = [].concat(ids).filter(Boolean);
+    if (!ids.length) return Promise.resolve();
+    if (mem) { ids.forEach(id => mem[store].delete(id)); return Promise.resolve(); }
+    return new Promise((res, rej) => {
+      const t = db.transaction(store, 'readwrite'); const os = t.objectStore(store);
+      ids.forEach(id => os.delete(id));
+      t.oncomplete = () => res(); t.onerror = () => rej(t.error);
+    });
+  }
+  function clear(store) {
+    if (mem) { mem[store].clear(); return Promise.resolve(); }
+    return new Promise((res, rej) => {
+      const t = db.transaction(store, 'readwrite'); t.objectStore(store).clear();
+      t.oncomplete = () => res(); t.onerror = () => rej(t.error);
+    });
+  }
+  return { init, getAll, get, put, remove, clear, get persistent() { return !mem; } };
 })();
 
 function save(store, items) {
+  if (store !== 'snapshots') markDirty();
   return Store.put(store, items).catch(err => {
     console.error(err);
     toast('Speichern fehlgeschlagen. Sichere ein Backup, bevor du weiterschreibst.');
@@ -1279,6 +1301,7 @@ function when(ts) {
 async function showLibrary() {
   S.view = 'library'; S.page = null; S.nb = null; ink = null; eraser = null; touches.clear(); gesture = null;
   $('editor').hidden = true; $('library').hidden = false;
+  renderLibStatus();
   const nbs = (await Store.getAll('notebooks')).filter(n => !n.deleted).sort((a, b) => b.u - a.u);
   const grid = $('nbGrid'); grid.textContent = '';
   $('emptyState').hidden = nbs.length > 0;
@@ -1520,6 +1543,7 @@ async function exportBackup() {
   const data = { app: 'tabula', version: 2, exported: new Date().toISOString(), notebooks, pages, strokes, assets };
   await saveFile(new Blob([JSON.stringify(data)], { type: 'application/json' }), `tabula-backup-${stamp()}.json`);
   lsSet('tabula.lastBackup', Date.now());
+  if (S.view === 'library') renderLibStatus();
 }
 async function importBackup(file) {
   let data;
@@ -1602,6 +1626,57 @@ $('pdfFile').onchange = e => { const fs = [...(e.target.files || [])]; e.target.
 $('exportBtn').onclick = exportBackup;
 $('importBtn').onclick = () => $('importFile').click();
 $('importFile').onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) importBackup(f); };
+
+/* ================= Automatische Sicherung alle 20 Minuten ================= */
+const SNAP_EVERY = 20 * 60 * 1000, SNAP_KEEP = 18;      // 18 Stände ≈ 6 Stunden Arbeit
+let dirty = false;
+function markDirty() { if (!dirty) { dirty = true; lsSet('tabula.dirtySince', Date.now()); } }
+async function takeSnapshot(reason) {
+  flushMeta();
+  const [notebooks, pages, strokes] = await Promise.all([Store.getAll('notebooks'), Store.getAll('pages'), Store.getAll('strokes')]);
+  const now = Date.now();
+  const snap = { id: 'snap-' + now, t: now, reason: reason || 'auto',
+                 nbCount: notebooks.filter(n => !n.deleted).length, strokeCount: strokes.filter(x => !x.deleted && x.tool !== 'image').length,
+                 data: { notebooks, pages, strokes } };   // Bilder ändern sich nie und bleiben ohnehin gespeichert
+  await Store.put('snapshots', snap);
+  const all = (await Store.getAll('snapshots')).sort((a, b) => b.t - a.t);
+  await Store.remove('snapshots', all.slice(SNAP_KEEP).map(x => x.id));
+  dirty = false; lsSet('tabula.lastSnap', now); lsSet('tabula.dirtySince', 0);
+  if (S.view === 'library') renderLibStatus();
+  return snap;
+}
+async function autosaveTick() {
+  if (!Store.persistent || EMBEDDED) return;
+  const last = lsGet('tabula.lastSnap', 0);
+  const pending = dirty || lsGet('tabula.dirtySince', 0) > 0;
+  if (pending && Date.now() - last >= SNAP_EVERY) { try { await takeSnapshot('auto'); } catch (e) { console.error(e); } }
+}
+function renderLibStatus() {
+  const el = $('libStatus'); if (!el) return;
+  if (!Store.persistent || EMBEDDED) { el.hidden = true; return; }
+  el.hidden = false;
+  const snap = lsGet('tabula.lastSnap', 0), file = lsGet('tabula.lastBackup', 0);
+  el.textContent = `Automatische Sicherung alle 20 Minuten, zuletzt ${snap ? when(snap) : 'noch nie'} · Backup in Dateien ${file ? when(file) : 'noch nie'} · `;
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Sicherungen anzeigen';
+  b.onclick = showSnapshots; el.appendChild(b);
+}
+async function showSnapshots() {
+  const snaps = (await Store.getAll('snapshots')).sort((a, b) => b.t - a.t);
+  if (!snaps.length) { toast('Noch keine automatische Sicherung. Die erste entsteht 20 Minuten nach deiner ersten Änderung.'); return; }
+  const actions = snaps.map(x => ({ id: x.id, label: `${when(x.t)} · ${x.nbCount} ${x.nbCount === 1 ? 'Notizbuch' : 'Notizbücher'}, ${x.strokeCount} Striche${x.reason === 'restore' ? ' · vor Wiederherstellung' : ''}` }));
+  const id = await dialog({ title: 'Sicherungen', text: 'Wähle einen Stand, um ihn wiederherzustellen. Der aktuelle Stand wird vorher selbst gesichert.', actions, scroll: true });
+  if (!id) return;
+  const snap = snaps.find(x => x.id === id);
+  const ok = await dialog({ title: `Stand von ${when(snap.t)} wiederherstellen?`, text: 'Alle Notizbücher kehren zu diesem Zeitpunkt zurück. Was danach geschrieben wurde, liegt weiter in der Sicherung „vor Wiederherstellung“.', confirm: 'Wiederherstellen', danger: true });
+  if (!ok) return;
+  await takeSnapshot('restore');
+  for (const st of ['notebooks', 'pages', 'strokes']) { await Store.clear(st); await Store.put(st, snap.data[st]); }
+  S.hist.clear(); dirty = false;
+  toast(`Stand von ${when(snap.t)} wiederhergestellt`);
+  showLibrary();
+}
+setInterval(autosaveTick, 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) autosaveTick(); });
 
 /* ================= Beispielheft beim ersten Start ================= */
 function seedStrokes(pageId) {
@@ -1719,11 +1794,12 @@ async function boot() {
     if (!all.length) await seedExample();
   } catch (e) { console.error(e); }
   await showLibrary();
+  autosaveTick();
   if (!EMBEDDED && 'serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 }
-window.__tabula = { S, Store }; // für Tests
+window.__tabula = { S, Store, autosaveTick }; // für Tests
 boot();
 })();
 </script>
