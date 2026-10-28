@@ -362,26 +362,29 @@ const Store = (() => {
   function openDB() {
     return new Promise((res, rej) => {
       let r;
-      try { r = indexedDB.open('tabula', 3); } catch (e) { rej(e); return; }
-      r.onupgradeneeded = () => {
+      try { r = indexedDB.open('tabula', 4); } catch (e) { rej(e); return; }
+      r.onupgradeneeded = ev => {
         const d = r.result;
         if (!d.objectStoreNames.contains('notebooks')) d.createObjectStore('notebooks', { keyPath: 'id' });
         if (!d.objectStoreNames.contains('pages')) d.createObjectStore('pages', { keyPath: 'id' }).createIndex('notebookId', 'notebookId');
         if (!d.objectStoreNames.contains('strokes')) d.createObjectStore('strokes', { keyPath: 'id' }).createIndex('pageId', 'pageId');
         if (!d.objectStoreNames.contains('assets')) d.createObjectStore('assets', { keyPath: 'id' });
         if (!d.objectStoreNames.contains('snapshots')) d.createObjectStore('snapshots', { keyPath: 'id' });
+        else if (ev.oldVersion < 4) r.transaction.objectStore('snapshots').clear();   // alte Vollkopien, ersetzt durch Versionen pro Seite
+        if (!d.objectStoreNames.contains('versions')) d.createObjectStore('versions', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'id' });
       };
-      r.onsuccess = () => res(r.result);
+      r.onsuccess = () => { const d = r.result; d.onversionchange = () => d.close(); res(d); };
       r.onerror = () => rej(r.error);
-      r.onblocked = () => rej(new Error('blocked'));
+      r.onblocked = () => { Store.blocked = true; };   // eine ältere Version ist noch offen; weiter warten
     });
   }
   async function init() {
     try {
-      db = await Promise.race([openDB(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000))]);
+      db = await Promise.race([openDB(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))]);
       return true;
     } catch (e) {
-      mem = { notebooks: new Map(), pages: new Map(), strokes: new Map(), assets: new Map(), snapshots: new Map() };
+      mem = { notebooks: new Map(), pages: new Map(), strokes: new Map(), assets: new Map(), snapshots: new Map(), versions: new Map(), meta: new Map() };
       return false;
     }
   }
@@ -430,11 +433,18 @@ const Store = (() => {
       t.oncomplete = () => res(); t.onerror = () => rej(t.error);
     });
   }
-  return { init, getAll, get, put, remove, clear, get persistent() { return !mem; } };
+  function keys(store) {
+    if (mem) return Promise.resolve([...mem[store].keys()]);
+    return new Promise((res, rej) => {
+      const r = db.transaction(store, 'readonly').objectStore(store).getAllKeys();
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+  }
+  return { init, getAll, get, put, remove, clear, keys, get persistent() { return !mem; } };
 })();
 
 function save(store, items) {
-  if (store !== 'snapshots') markDirty();
+  if (store === 'notebooks' || store === 'pages' || store === 'strokes' || store === 'assets') markChanged(store, items);
   return Store.put(store, items).catch(err => {
     console.error(err);
     toast('Speichern fehlgeschlagen. Sichere ein Backup, bevor du weiterschreibst.');
@@ -1570,9 +1580,17 @@ async function exportBackup() {
   lsSet('tabula.lastBackup', Date.now());
   if (S.view === 'library') renderLibStatus();
 }
-async function mergeData(data) {
+async function mergeData(data, opts = {}) {
+  const loadCur = async (store, items) => {
+    if (store !== 'strokes') return new Map((await Store.getAll(store)).map(x => [x.id, x]));
+    const m = new Map();   // nur die betroffenen Seiten laden, nicht alle Striche
+    for (const pid of new Set(items.map(i => i && i.pageId).filter(Boolean)))
+      for (const x of await Store.getAll('strokes', 'pageId', pid)) m.set(x.id, x);
+    return m;
+  };
   const merge = async (store, items) => {
-    const cur = new Map((await Store.getAll(store)).map(x => [x.id, x]));
+    items = items || [];
+    const cur = await loadCur(store, items);
     const out = [];
     for (const it of items || []) {
       if (!it || !it.id) continue;
@@ -1586,12 +1604,13 @@ async function mergeData(data) {
         if (JSON.stringify(merged) !== JSON.stringify(ex)) out.push(merged);
       } else if (newer === it) out.push(it);
     }
-    await Store.put(store, out);
+    for (let i = 0; i < out.length; i += 500) await Store.put(store, out.slice(i, i + 500));
+    markChanged(store, out, !opts.fromGit);
     return out.length;
   };
   if (data.assets) await merge('assets', data.assets);
-  const changed = (await merge('pages', data.pages)) + (await merge('strokes', data.strokes));
-  const n = await merge('notebooks', data.notebooks);
+  const changed = (data.pages ? await merge('pages', data.pages) : 0) + (data.strokes ? await merge('strokes', data.strokes) : 0);
+  const n = data.notebooks ? await merge('notebooks', data.notebooks) : 0;
   return { notebooks: n, total: changed + n };
 }
 async function importBackup(file) {
@@ -1677,11 +1696,91 @@ $('exportBtn').onclick = exportBackup;
 $('importBtn').onclick = () => $('importFile').click();
 $('importFile').onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) importBackup(f); };
 
-/* ================= Automatische Sicherung alle 20 Minuten ================= */
-const SNAP_EVERY = 2 * 60 * 1000;   // alle 2 Minuten; aufbewahrt: 15 neueste, dann stündlich (12 h), dann täglich (7 Tage)
-let dirty = false;
-function markDirty() { if (!dirty) { dirty = true; lsSet('tabula.dirtySince', Date.now()); } gitDirty = true; }
-let gitDirty = false;
+/* ================= Änderungen verfolgen ================= */
+// Zwei getrennte Listen: was in die lokale Versionsgeschichte muss (snap) und was nach GitHub muss (git).
+// p: Seiten-ID → Zeitpunkt der letzten Änderung, i: Inhaltsverzeichnis geändert, a: neue Bilder
+const DIRTY = {
+  snap: Object.assign({ p: {}, i: 0 }, lsGet('tabula.dirtySnap', {})),
+  git: Object.assign({ p: {}, i: 0, a: 0 }, lsGet('tabula.dirtyGit', {}))
+};
+const persistDirty = () => { lsSet('tabula.dirtySnap', DIRTY.snap); lsSet('tabula.dirtyGit', DIRTY.git); };
+function markChanged(store, items, git = true) {
+  items = [].concat(items).filter(Boolean);
+  if (!items.length) return;
+  const now = Date.now(); let grew = false;
+  for (const name of git ? ['snap', 'git'] : ['snap']) {
+    const d = DIRTY[name];
+    if (store === 'strokes') for (const s of items) { if (!s.pageId) continue; if (!d.p[s.pageId]) grew = true; d.p[s.pageId] = now; }
+    else if (store === 'pages' || store === 'notebooks') { if (!d.i) grew = true; d.i = now; }
+    else if (store === 'assets' && name === 'git') { if (!d.a) grew = true; d.a = now; }
+  }
+  if (grew) persistDirty();
+}
+function clearDirty(name, pids, index, assets, upTo) {
+  const d = DIRTY[name];
+  for (const pid of pids) if (d.p[pid] && d.p[pid] <= upTo) delete d.p[pid];
+  if (index && d.i && d.i <= upTo) d.i = 0;
+  if (assets && d.a && d.a <= upTo) d.a = 0;
+  persistDirty();
+}
+window.addEventListener('pagehide', persistDirty);
+
+/* ================= Dateiformat 4: eine Datei pro Seite, eine Zeile pro Strich ================= */
+const zz = n => (n >= 0 ? n * 2 : -n * 2 - 1);
+const enc36 = n => zz(n).toString(36);
+const dec36 = s => { const z = parseInt(s, 36); return z % 2 ? -(z + 1) / 2 : z / 2; };
+function packPts(pts, pr) {
+  const out = []; let px = 0, py = 0;
+  for (let i = 0; i < pts.length; i += 3) {
+    const x = Math.round(pts[i] * 10), y = Math.round(pts[i + 1] * 10);
+    out.push(enc36(x - px), enc36(y - py)); px = x; py = y;
+    if (pr) out.push(Math.round(pts[i + 2] * 1000).toString(36));
+  }
+  return out.join(' ');
+}
+function unpackPts(str, pr) {
+  const a = str ? str.split(' ') : [], pts = []; let x = 0, y = 0;
+  for (let i = 0; i < a.length;) {
+    x += dec36(a[i++]); y += dec36(a[i++]);
+    pts.push(x / 10, y / 10, pr ? parseInt(a[i++], 36) / 1000 : 0.5);
+  }
+  return pts;
+}
+function strokeLine(s) {
+  if (s.deleted) return JSON.stringify({ id: s.id, t: s.t, u: s.u, d: 1 });
+  const o = {};
+  for (const k in s) if (k !== 'pts' && k !== 'pageId' && k !== 'deleted') o[k] = s[k];
+  if (s.pts && s.pts.length) o.p = packPts(s.pts, s.pr);
+  return JSON.stringify(o);
+}
+const byTime = (a, b) => (a.t || 0) - (b.t || 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+function pageFile(strokes) { return strokes.slice().sort(byTime).map(strokeLine).join('\n') + '\n'; }
+function parsePage(text, pageId) {
+  return text.split('\n').filter(l => l.trim()).map(l => {
+    const o = JSON.parse(l);
+    if (o.d) return { id: o.id, pageId, t: o.t, u: o.u, tool: 'pen', pts: [], deleted: 1 };
+    const s = { ...o, pageId, deleted: 0 };
+    s.pts = o.p ? unpackPts(o.p, o.pr) : [];
+    delete s.p;
+    return s;
+  });
+}
+function indexFile(notebooks, pages) {
+  const ln = a => a.slice().sort(byTime).map(o => JSON.stringify(o)).join(',\n');
+  return `{"app":"tabula","format":4,\n"notebooks":[\n${ln(notebooks)}\n],\n"pages":[\n${ln(pages)}\n]}\n`;
+}
+const utf8 = s => new TextEncoder().encode(s);
+async function blobSha(bytes) {
+  const head = utf8(`blob ${bytes.length}\0`);
+  const all = new Uint8Array(head.length + bytes.length); all.set(head); all.set(bytes, head.length);
+  const h = await crypto.subtle.digest('SHA-1', all);
+  return Array.from(new Uint8Array(h), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/* ================= Lokale Versionsgeschichte (nur geänderte Seiten) ================= */
+const SNAP_EVERY = 2 * 60 * 1000;   // alle 2 Minuten; behalten: 15 neueste, dann stündlich (12 h), dann täglich (7 Tage)
+const vid = (key, t) => `${key}|${String(t).padStart(15, '0')}`;
+const vparse = id => { const i = id.lastIndexOf('|'); return { id, key: id.slice(0, i), t: +id.slice(i + 1) }; };
 function snapsToDrop(all) {
   const now = Date.now(), keep = new Set(), hours = new Set(), days = new Set();
   all.forEach((x, i) => {
@@ -1692,26 +1791,63 @@ function snapsToDrop(all) {
   });
   return all.filter(x => !keep.has(x.id)).map(x => x.id);
 }
-async function takeSnapshot(reason) {
-  flushMeta();
-  const [notebooks, pages, strokes] = await Promise.all([Store.getAll('notebooks'), Store.getAll('pages'), Store.getAll('strokes')]);
-  const now = Date.now();
-  const snap = { id: 'snap-' + now, t: now, reason: reason || 'auto',
-                 nbCount: notebooks.filter(n => !n.deleted).length, strokeCount: strokes.filter(x => !x.deleted && x.tool !== 'image').length,
-                 data: { notebooks, pages, strokes } };   // Bilder ändern sich nie und bleiben ohnehin gespeichert
-  await Store.put('snapshots', snap);
-  const all = (await Store.getAll('snapshots')).sort((a, b) => b.t - a.t);
-  await Store.remove('snapshots', snapsToDrop(all));
-  dirty = false; lsSet('tabula.lastSnap', now); lsSet('tabula.dirtySince', 0);
-  if (S.view === 'library') renderLibStatus();
-  return snap;
+let snapBusy = null;
+async function writeVersions(t, pids, withIndex) {
+  const vs = [];
+  for (const pid of pids) vs.push({ id: vid('page:' + pid, t), t, data: await Store.getAll('strokes', 'pageId', pid) });
+  let nbCount = 0;
+  if (withIndex) {
+    const [notebooks, pages] = await Promise.all([Store.getAll('notebooks'), Store.getAll('pages')]);
+    vs.push({ id: vid('index', t), t, data: { notebooks, pages } });
+    nbCount = notebooks.filter(n => !n.deleted).length;
+  }
+  for (let i = 0; i < vs.length; i += 50) await Store.put('versions', vs.slice(i, i + 50));
+  return nbCount;
 }
-async function autosaveTick() {
-  if (!Store.persistent || EMBEDDED) return;
-  const last = lsGet('tabula.lastSnap', 0);
-  const pending = dirty || lsGet('tabula.dirtySince', 0) > 0;
-  if (pending && Date.now() - last >= SNAP_EVERY) { try { await takeSnapshot('auto'); } catch (e) { console.error(e); } }
-  if (gitDirty && Date.now() - lsGet('tabula.gitPush', 0) >= SNAP_EVERY) gitPush();
+async function ensureBaseline() {
+  if (lsGet('tabula.verBase', 0) || !Store.persistent || EMBEDDED) return;
+  const t = Date.now();
+  const pages = await Store.getAll('pages');
+  const nbCount = await writeVersions(t, pages.map(p => p.id), true);
+  await Store.put('snapshots', { id: 'snap-' + t, t, reason: 'start', pages: pages.length, nbCount });
+  lsSet('tabula.verBase', t); lsSet('tabula.lastSnap', t);
+}
+function snapTick(reason = 'auto', force = false) {
+  if (snapBusy) return snapBusy;
+  snapBusy = (async () => {
+    try {
+      flushMeta();
+      const d = DIRTY.snap, pids = Object.keys(d.p), idx = !!d.i || force;
+      if (!pids.length && !idx) return null;
+      const t = Date.now();
+      const nbCount = await writeVersions(t, pids, idx);
+      const meta = { id: 'snap-' + t, t, reason, pages: pids.length, nbCount };
+      await Store.put('snapshots', meta);
+      clearDirty('snap', pids, idx, false, t);
+      lsSet('tabula.lastSnap', t);
+      await pruneVersions();
+      if (S.view === 'library') renderLibStatus();
+      return meta;
+    } finally { snapBusy = null; }
+  })();
+  return snapBusy;
+}
+async function pruneVersions() {
+  const metas = (await Store.getAll('snapshots')).sort((a, b) => b.t - a.t);
+  const drop = new Set(snapsToDrop(metas));
+  await Store.remove('snapshots', [...drop]);
+  const kept = metas.filter(m => !drop.has(m.id)).map(m => m.t).sort((a, b) => a - b);
+  const byKey = new Map();
+  for (const id of await Store.keys('versions')) { const v = vparse(id); if (!byKey.has(v.key)) byKey.set(v.key, []); byKey.get(v.key).push(v); }
+  const del = [];
+  for (const list of byKey.values()) {
+    list.sort((a, b) => a.t - b.t);
+    const keep = new Set([list[list.length - 1].id]);
+    let j = -1;
+    for (const T of kept) { while (j + 1 < list.length && list[j + 1].t <= T) j++; if (j >= 0) keep.add(list[j].id); }
+    for (const v of list) if (!keep.has(v.id)) del.push(v.id);
+  }
+  await Store.remove('versions', del);
 }
 function renderLibStatus() {
   const el = $('libStatus'); if (!el) return;
@@ -1719,7 +1855,7 @@ function renderLibStatus() {
   el.hidden = false;
   const snap = lsGet('tabula.lastSnap', 0), file = lsGet('tabula.lastBackup', 0);
   const g = syncCfg(), gp = lsGet('tabula.gitPush', 0), ge = lsGet('tabula.gitError', '');
-  const gitText = g ? (ge ? `GitHub: ${ge}` : `GitHub ${gp ? when(gp) : 'noch nie'}`) : 'GitHub nicht verbunden';
+  const gitText = !g ? 'GitHub nicht verbunden' : gitProgress ? `GitHub: ${gitProgress}` : ge ? `GitHub: ${ge}` : `GitHub ${gp ? when(gp) : 'noch nie'}`;
   el.textContent = `Sicherung alle 2 Minuten · iPad ${snap ? when(snap) : 'noch nie'} · ${gitText} · Dateien ${file ? when(file) : 'noch nie'} · `;
   const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Sicherungen';
   b.onclick = showSnapshots;
@@ -1728,113 +1864,270 @@ function renderLibStatus() {
   el.append(b, ' · ', b2);
 }
 async function showSnapshots() {
+  await snapTick('auto');
   const snaps = (await Store.getAll('snapshots')).sort((a, b) => b.t - a.t);
-  if (!snaps.length) { toast('Noch keine automatische Sicherung. Die erste entsteht 2 Minuten nach deiner ersten Änderung.'); return; }
-  const actions = snaps.map(x => ({ id: x.id, label: `${when(x.t)} · ${x.nbCount} ${x.nbCount === 1 ? 'Notizbuch' : 'Notizbücher'}, ${x.strokeCount} Striche${x.reason === 'restore' ? ' · vor Wiederherstellung' : ''}` }));
-  const id = await dialog({ title: 'Sicherungen', text: 'Wähle einen Stand, um ihn wiederherzustellen. Der aktuelle Stand wird vorher selbst gesichert.', actions, scroll: true });
+  if (!snaps.length) { toast('Noch keine Sicherung vorhanden.'); return; }
+  const what = x => x.reason === 'start' ? 'Ausgangsstand' : x.reason === 'restore' ? 'vor Wiederherstellung'
+    : `${x.pages} ${x.pages === 1 ? 'Seite' : 'Seiten'} geändert`;
+  const actions = snaps.map(x => ({ id: x.id, label: `${when(x.t)} · ${what(x)}` }));
+  const id = await dialog({ title: 'Sicherungen', text: 'Wähle einen Stand, um ihn wiederherzustellen. Der aktuelle Stand wird vorher selbst gesichert. Ältere Stände liegen auf GitHub in der Versionsgeschichte.', actions, scroll: true });
   if (!id) return;
   const snap = snaps.find(x => x.id === id);
   const ok = await dialog({ title: `Stand von ${when(snap.t)} wiederherstellen?`, text: 'Alle Notizbücher kehren zu diesem Zeitpunkt zurück. Was danach geschrieben wurde, liegt weiter in der Sicherung „vor Wiederherstellung“.', confirm: 'Wiederherstellen', danger: true });
   if (!ok) return;
-  await takeSnapshot('restore');
-  for (const st of ['notebooks', 'pages', 'strokes']) { await Store.clear(st); await Store.put(st, snap.data[st]); }
-  S.hist.clear(); dirty = false;
-  toast(`Stand von ${when(snap.t)} wiederhergestellt`);
+  await restoreTo(snap.t);
+}
+async function restoreTo(T) {
+  await snapTick('restore', true);
+  const latest = (key, keys) => { let best = null; for (const v of keys) if (v.key === key && v.t <= T && (!best || v.t > best.t)) best = v; return best; };
+  const keys = (await Store.keys('versions')).map(vparse);
+  const iv = latest('index', keys);
+  if (!iv) { toast('Für diesen Zeitpunkt fehlt das Inhaltsverzeichnis.'); return; }
+  const index = (await Store.get('versions', iv.id)).data;
+  const now = Date.now();
+  const strip = o => { const c = { ...o }; delete c.u; return JSON.stringify(c); };
+  async function apply(store, target, current) {
+    const tgt = new Map(target.map(x => [x.id, x])), out = [];
+    for (const c of current) if (!tgt.has(c.id) && !c.deleted) out.push({ ...c, deleted: 1, u: now });
+    const cur = new Map(current.map(x => [x.id, x]));
+    for (const x of target) { const c = cur.get(x.id); if (!c || strip(c) !== strip(x)) out.push({ ...x, u: now }); }
+    for (let i = 0; i < out.length; i += 200) await save(store, out.slice(i, i + 200));
+  }
+  await apply('notebooks', index.notebooks, await Store.getAll('notebooks'));
+  await apply('pages', index.pages, await Store.getAll('pages'));
+  for (const p of index.pages) {
+    if (p.deleted) continue;
+    const v = latest('page:' + p.id, keys);
+    const target = v ? (await Store.get('versions', v.id)).data : [];
+    await apply('strokes', target, await Store.getAll('strokes', 'pageId', p.id));
+  }
+  S.hist.clear();
+  toast(`Stand von ${when(T)} wiederhergestellt`);
   showLibrary();
+}
+
+async function autosaveTick() {
+  if (!Store.persistent || EMBEDDED) return;
+  if (Date.now() - lsGet('tabula.lastSnap', 0) >= SNAP_EVERY) { try { await snapTick('auto'); } catch (e) { console.error(e); } }
+  if (syncCfg() && gitPending() && Date.now() - lsGet('tabula.gitPush', 0) >= SNAP_EVERY && Date.now() > lsGet('tabula.gitWaitUntil', 0)) gitSync({ push: true });
 }
 setInterval(autosaveTick, 30 * 1000);
 let hiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { hiddenAt = Date.now(); autosaveTick(); if (gitDirty) gitPush(); }
-  else if (hiddenAt && Date.now() - hiddenAt > 5 * 60 * 1000) gitPull(true);
+  if (document.hidden) { hiddenAt = Date.now(); persistDirty(); snapTick('auto'); if (gitPending()) gitSync({ push: true }); }
+  else if (hiddenAt && Date.now() - hiddenAt > 5 * 60 * 1000) gitSync({ push: true });
 });
 
-/* ================= Sicherung in einem privaten GitHub-Repository ================= */
+/* ================= Sicherung in einem privaten GitHub-Repository (Git-Data-Schnittstelle) ================= */
+const GH_API = window.__TABULA_API__ || 'https://api.github.com';
 const syncCfg = () => { const c = lsGet('tabula.sync', null); return c && c.repo && c.token ? c : null; };
-function gh(path, opts = {}) {
+const gitPending = () => Object.keys(DIRTY.git.p).length > 0 || !!DIRTY.git.i || !!DIRTY.git.a;
+let gitProgress = '';
+const writes = [];   // Zeitpunkte schreibender Aufrufe, für die Drosselung
+async function throttle() {
+  for (;;) {
+    const now = Date.now();
+    while (writes.length && now - writes[0] > 3600e3) writes.shift();
+    const lastMin = writes.filter(t => now - t < 60e3);
+    if (writes.length >= 450) { const until = writes[0] + 3600e3; lsSet('tabula.gitWaitUntil', until); throw new Error('GitHub-Stundenlimit erreicht, geht später weiter'); }
+    if (lastMin.length < 60) { writes.push(now); return; }
+    await new Promise(r => setTimeout(r, lastMin[0] + 60e3 - now + 50));
+  }
+}
+async function gh(path, opts = {}) {
   const c = syncCfg();
+  if (opts.method && opts.method !== 'GET') await throttle();
   const headers = { Authorization: `Bearer ${c.token}`, Accept: opts.accept || 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
   if (opts.body) headers['Content-Type'] = 'application/json';
-  return fetch(`https://api.github.com/repos/${c.repo}${path}`, { method: opts.method || 'GET', headers, body: opts.body, cache: 'no-store' });
+  return fetch(`${GH_API}/repos/${c.repo}${path}`, { method: opts.method || 'GET', headers, body: opts.body, cache: 'no-store' });
+}
+async function ghErr(r) {
+  let msg = '';
+  try { msg = (await r.json()).message || ''; } catch (e) {}
+  if (r.status === 429 || (r.status === 403 && /rate limit/i.test(msg))) {
+    const ra = +(r.headers.get('retry-after') || 60);
+    lsSet('tabula.gitWaitUntil', Date.now() + ra * 1000);
+    return new Error('GitHub bremst kurz, geht gleich weiter');
+  }
+  return new Error(r.status === 401 ? 'Schlüssel ungültig oder abgelaufen' : r.status === 403 ? 'Schlüssel hat keine Schreibrechte' : r.status === 404 ? 'Repository nicht gefunden' : `Fehler ${r.status}`);
+}
+async function ghJSON(path, opts) { const r = await gh(path, opts); if (!r.ok) throw await ghErr(r); return r.json(); }
+async function ghRaw(sha) {
+  const r = await gh(`/git/blobs/${sha}`, { accept: 'application/vnd.github.raw+json' });
+  if (!r.ok) throw await ghErr(r);
+  return r;
 }
 function b64(str) {
-  const bytes = new TextEncoder().encode(str); let bin = '';
+  const bytes = utf8(str); let bin = '';
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   return btoa(bin);
 }
-const ghError = r => r.status === 401 ? 'Schlüssel ungültig oder abgelaufen' : r.status === 403 ? 'Schlüssel hat keine Schreibrechte' : r.status === 404 ? 'Repository nicht gefunden' : `Fehler ${r.status}`;
-async function putFile(path, content, message) {
-  const head = await gh(`/contents/${path}`);
-  const sha = head.ok ? (await head.json()).sha : undefined;
-  if (!head.ok && head.status !== 404) throw new Error(ghError(head));
-  const r = await gh(`/contents/${path}`, { method: 'PUT', body: JSON.stringify({ message, content, sha }) });
-  if (!r.ok) throw new Error(ghError(r));
+async function gitMeta() { return (await Store.get('meta', 'git')) || { id: 'git', head: null, treeSha: null, tree: {} }; }
+
+/* Fremde Änderungen holen und einmischen */
+async function pullChanges(remote, known) {
+  const changed = Object.keys(remote).filter(p => remote[p] !== known[p]);
+  if (!changed.length) return { total: 0, legacy: false };
+  let total = 0, legacy = false, n = 0;
+  const order = p => p === 'index.json' ? 0 : p === 'tabula.json' ? 1 : p.startsWith('pages/') ? 2 : 3;
+  changed.sort((a, b) => order(a) - order(b));
+  const localAssets = new Set(await Store.keys('assets'));
+  for (const path of changed) {
+    gitProgress = `lädt ${++n} von ${changed.length}`;
+    if (path === 'index.json') {
+      const d = JSON.parse(await (await ghRaw(remote[path])).text());
+      total += (await mergeData({ notebooks: d.notebooks, pages: d.pages }, { fromGit: true })).total;
+    } else if (path === 'tabula.json') {
+      // altes Format: einlesen und später im neuen Format ablegen
+      const d = JSON.parse(await (await ghRaw(remote[path])).text());
+      total += (await mergeData({ notebooks: d.notebooks, pages: d.pages, strokes: d.strokes }, { fromGit: true })).total;
+      legacy = true;
+    } else if (/^pages\/[^/]+\.jsonl$/.test(path)) {
+      const pid = path.slice(6, -6);
+      const strokes = parsePage(await (await ghRaw(remote[path])).text(), pid);
+      total += (await mergeData({ strokes }, { fromGit: true })).total;
+    } else {
+      const m = /^assets\/([^/]+)\.(png|jpe?g)$/.exec(path);
+      if (!m || localAssets.has(m[1])) continue;
+      const blob = await (await ghRaw(remote[path])).blob();
+      const url = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+      const data = url.replace(/^data:[^;]*;/, `data:image/${m[2] === 'png' ? 'png' : 'jpeg'};`);
+      await Store.put('assets', { id: m[1], data, w: 0, h: 0, t: Date.now(), u: Date.now() });
+      total++;
+    }
+  }
+  return { total, legacy };
 }
-let pushing = null;
-function gitPush() {
-  if (!syncCfg() || EMBEDDED || pushing) return pushing;
-  pushing = (async () => {
+
+/* Was muss hoch? Nur Dateien, deren Inhalt sich vom Stand auf GitHub unterscheidet. */
+async function collectWork(meta, full) {
+  const t0 = Date.now(), files = [], pids = [];
+  const pageIds = full ? (await Store.getAll('pages')).map(p => p.id) : Object.keys(DIRTY.git.p);
+  for (const pid of pageIds) {
+    const path = `pages/${pid}.jsonl`;
+    const strokes = await Store.getAll('strokes', 'pageId', pid);
+    pids.push(pid);
+    if (!strokes.length && !meta.tree[path]) continue;
+    const content = pageFile(strokes), bytes = utf8(content), sha = await blobSha(bytes);
+    if (sha !== meta.tree[path]) files.push({ path, content, sha, size: bytes.length });
+  }
+  const idx = full || !!DIRTY.git.i;
+  if (idx) {
+    const [notebooks, pages] = await Promise.all([Store.getAll('notebooks'), Store.getAll('pages')]);
+    const content = indexFile(notebooks, pages), bytes = utf8(content), sha = await blobSha(bytes);
+    if (sha !== meta.tree['index.json']) files.push({ path: 'index.json', content, sha, size: bytes.length });
+  }
+  const remoteAssets = new Set(Object.keys(meta.tree).map(p => (/^assets\/([^/]+)\./.exec(p) || [])[1]).filter(Boolean));
+  const assets = (full || DIRTY.git.a) ? (await Store.keys('assets')).filter(id => !remoteAssets.has(id)) : [];
+  return { t0, files, pids, idx, assets, legacy: !!meta.tree['tabula.json'] };
+}
+
+const stampText = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+async function initRepo() {
+  // Ein leeres Repository kennt noch keinen Zweig; die Git-Data-Schnittstelle braucht einen ersten Commit.
+  const r = await gh('/contents/README.md', { method: 'PUT', body: JSON.stringify({ message: 'Tabula-Daten anlegen', content: b64('# Tabula-Daten\n\nPrivate Sicherung der Tabula-Notizbücher.\n') }) });
+  if (!r.ok && r.status !== 422) throw await ghErr(r);
+}
+
+async function syncOnce(opts) {
+  const meta = await gitMeta();
+  let r = await gh('/git/ref/heads/main');
+  if (r.status === 404 || r.status === 409) { await initRepo(); r = await gh('/git/ref/heads/main'); }
+  if (!r.ok) throw await ghErr(r);
+  const head = (await r.json()).object.sha;
+  let pulled = 0;
+  if (head !== meta.head) {
+    const c = await ghJSON(`/git/commits/${head}`);
+    const tj = await ghJSON(`/git/trees/${c.tree.sha}?recursive=1`);
+    if (tj.truncated) throw new Error('zu viele Dateien für einen Abgleich');
+    const remote = {};
+    for (const e of tj.tree) if (e.type === 'blob') remote[e.path] = e.sha;
+    const res = await pullChanges(remote, meta.tree);
+    pulled = res.total;
+    if (res.legacy) lsSet('tabula.gitFullNeeded', 1);
+    meta.head = head; meta.treeSha = c.tree.sha; meta.tree = remote;
+    await Store.put('meta', meta);
+  }
+  if (!opts.push) return { ok: true, pulled };
+
+  const full = !!opts.full || !!lsGet('tabula.gitFullNeeded', 0) || Date.now() - lsGet('tabula.gitFull', 0) > 86400e3;
+  const work = await collectWork(meta, full);
+  const done = () => {
+    clearDirty('git', work.pids, work.idx, true, work.t0);
+    if (full) { lsSet('tabula.gitFull', Date.now()); lsSet('tabula.gitFullNeeded', 0); }
+    lsSet('tabula.gitPush', Date.now()); lsSet('tabula.gitError', '');
+  };
+  if (!work.files.length && !work.assets.length && !work.legacy) { done(); return { ok: true, pulled, commits: 0 }; }
+
+  // in Commits aufteilen: höchstens 3 MB Text oder 40 Bilder pro Commit
+  const batches = []; let cur = { files: [], assets: [], size: 0 };
+  const flush = () => { if (cur.files.length || cur.assets.length) batches.push(cur); cur = { files: [], assets: [], size: 0 }; };
+  for (const f of work.files) { if (cur.size + f.size > 3e6) flush(); cur.files.push(f); cur.size += f.size; }
+  for (const id of work.assets) { if (cur.assets.length >= 40) flush(); cur.assets.push(id); }
+  flush();
+  if (!batches.length) batches.push({ files: [], assets: [], size: 0 });
+  const label = work.legacy ? 'Umstellung auf Format 4' : `Sicherung ${stampText()}`;
+  let commits = 0, sentAssets = 0;
+  for (const [bi, b] of batches.entries()) {
+    const entries = b.files.map(f => ({ path: f.path, mode: '100644', type: 'blob', content: f.content }));
+    const shas = Object.fromEntries(b.files.map(f => [f.path, f.sha]));
+    for (const id of b.assets) {
+      const a = await Store.get('assets', id);
+      const m = a && /^data:([^;]+);base64,(.*)$/.exec(a.data); if (!m) continue;
+      gitProgress = `lädt Bilder hoch (${++sentAssets} von ${work.assets.length})`;
+      if (S.view === 'library') renderLibStatus();
+      const path = `assets/${id}.${m[1] === 'image/png' ? 'png' : 'jpg'}`;
+      const blob = await ghJSON('/git/blobs', { method: 'POST', body: JSON.stringify({ content: m[2], encoding: 'base64' }) });
+      entries.push({ path, mode: '100644', type: 'blob', sha: blob.sha }); shas[path] = blob.sha;
+    }
+    const last = bi === batches.length - 1;
+    if (last && work.legacy) entries.push({ path: 'tabula.json', mode: '100644', type: 'blob', sha: null });
+    if (!entries.length) continue;
+    const tree = await ghJSON('/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: meta.treeSha, tree: entries }) });
+    const msg = batches.length > 1 ? `${label} (${bi + 1}/${batches.length})` : label;
+    const commit = await ghJSON('/git/commits', { method: 'POST', body: JSON.stringify({ message: msg, tree: tree.sha, parents: [meta.head] }) });
+    const ref = await gh('/git/refs/heads/main', { method: 'PATCH', body: JSON.stringify({ sha: commit.sha, force: false }) });
+    if (ref.status === 422 || ref.status === 409) return { ok: false, pulled, commits };   // anderes Gerät war schneller
+    if (!ref.ok) throw await ghErr(ref);
+    meta.head = commit.sha; meta.treeSha = tree.sha;
+    Object.assign(meta.tree, shas);
+    if (last && work.legacy) delete meta.tree['tabula.json'];
+    await Store.put('meta', meta);
+    commits++;
+  }
+  done();
+  return { ok: true, pulled, commits };
+}
+
+let syncing = null, syncAgain = null;
+function gitSync(opts = {}) {
+  if (!syncCfg() || EMBEDDED || !Store.persistent) return Promise.resolve(null);
+  if (syncing) { syncAgain = { push: !!(opts.push || (syncAgain && syncAgain.push)), full: !!(opts.full || (syncAgain && syncAgain.full)) }; return syncing; }
+  syncing = (async () => {
+    let res = null;
     try {
-      gitDirty = false; flushMeta();
-      const [notebooks, pages, strokes, assets] = await Promise.all([Store.getAll('notebooks'), Store.getAll('pages'), Store.getAll('strokes'), Store.getAll('assets')]);
-      // Bilder einzeln und nur einmal hochladen
-      const sent = new Set(lsGet('tabula.gitAssets', []));
-      for (const a of assets) {
-        if (sent.has(a.id)) continue;
-        const m = /^data:([^;]+);base64,(.*)$/.exec(a.data); if (!m) continue;
-        const ext = m[1] === 'image/png' ? 'png' : 'jpg';
-        await putFile(`assets/${a.id}.${ext}`, m[2], `Bild ${a.id.slice(0, 8)}`);
-        sent.add(a.id); lsSet('tabula.gitAssets', [...sent]);
+      if (Date.now() < lsGet('tabula.gitWaitUntil', 0)) throw new Error('GitHub bremst kurz, geht gleich weiter');
+      flushMeta();
+      for (let attempt = 0; attempt < 4; attempt++) { res = await syncOnce(opts); if (res.ok) break; }
+      if (res && !res.ok) throw new Error('Abgleich mehrfach überholt, wird nachgeholt');
+      if (res && res.pulled) {
+        if (S.view === 'library') showLibrary();
+        else if (S.view === 'editor' && S.nb && !ink && !eraser && !drag) { const keep = { ...S.v }, pi = S.pi; await openNotebook(S.nb.id, pi); S.v = keep; renderBg(); }
       }
-      const index = assets.map(a => ({ id: a.id, w: a.w, h: a.h, t: a.t, u: a.u, ext: /^data:image\/png/.test(a.data) ? 'png' : 'jpg' }));
-      const data = { app: 'tabula', version: 3, saved: new Date().toISOString(), notebooks, pages, strokes, assetIndex: index };
-      const d = new Date(), p2 = n => String(n).padStart(2, '0');
-      await putFile('tabula.json', b64(JSON.stringify(data)), `Sicherung ${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`);
-      lsSet('tabula.gitPush', Date.now()); lsSet('tabula.gitError', '');
     } catch (e) {
-      gitDirty = true; lsSet('tabula.gitError', navigator.onLine === false ? 'offline, wird nachgeholt' : (e.message || 'nicht erreichbar'));
+      console.error(e);
+      lsSet('tabula.gitError', navigator.onLine === false ? 'offline, wird nachgeholt' : (e.message || 'nicht erreichbar'));
     } finally {
-      pushing = null;
+      gitProgress = '';
+      syncing = null;
       if (S.view === 'library') renderLibStatus();
     }
+    if (syncAgain) { const o = syncAgain; syncAgain = null; gitSync(o); }
+    return res;
   })();
-  return pushing;
+  return syncing;
 }
-async function gitPull(quiet) {
-  if (!syncCfg() || EMBEDDED) return 0;
-  try {
-    const r = await gh('/contents/tabula.json', { accept: 'application/vnd.github.raw+json' });
-    if (r.status === 404) return 0;
-    if (!r.ok) throw new Error(ghError(r));
-    const data = JSON.parse(await r.text());
-    // fehlende Bilder holen
-    const have = new Set((await Store.getAll('assets')).map(a => a.id));
-    const sent = new Set(lsGet('tabula.gitAssets', []));
-    for (const a of data.assetIndex || []) {
-      sent.add(a.id);
-      if (have.has(a.id)) continue;
-      const ar = await gh(`/contents/assets/${a.id}.${a.ext}`, { accept: 'application/vnd.github.raw+json' });
-      if (!ar.ok) continue;
-      const blob = await ar.blob();
-      const url = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
-      const fixed = url.replace(/^data:[^;]*;/, `data:image/${a.ext === 'png' ? 'png' : 'jpeg'};`);
-      await Store.put('assets', { id: a.id, data: fixed, w: a.w, h: a.h, t: a.t, u: a.u });
-    }
-    lsSet('tabula.gitAssets', [...sent]);
-    const res = await mergeData(data);
-    lsSet('tabula.gitPull', Date.now()); lsSet('tabula.gitError', '');
-    if (res.total) {
-      if (S.view === 'library') showLibrary();
-      else if (S.view === 'editor' && S.nb) { const keep = { ...S.v }, pi = S.pi; await openNotebook(S.nb.id, pi); S.v = keep; renderBg(); }
-      if (!quiet) toast('Stand von GitHub geladen');
-    }
-    return res.total;
-  } catch (e) {
-    lsSet('tabula.gitError', navigator.onLine === false ? 'offline' : (e.message || 'nicht erreichbar'));
-    if (S.view === 'library') renderLibStatus();
-    return 0;
-  }
-}
+
 async function syncSettings() {
   const c = lsGet('tabula.sync', null) || {};
   const r = await dialog({
@@ -1849,15 +2142,17 @@ async function syncSettings() {
   if (!r) return;
   const repo = r.fields.repo.replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, ''), token = r.fields.token;
   if (!token) { lsSet('tabula.sync', null); lsSet('tabula.gitError', ''); toast('GitHub-Sicherung getrennt'); renderLibStatus(); return; }
+  const changedRepo = c.repo !== repo;
   lsSet('tabula.sync', { repo, token });
+  if (changedRepo) await Store.remove('meta', 'git');
   const test = await gh('').catch(() => null);
-  if (!test || !test.ok) { lsSet('tabula.gitError', test ? ghError(test) : 'nicht erreichbar'); toast(`Verbindung fehlgeschlagen: ${test ? ghError(test) : 'GitHub nicht erreichbar'}`); renderLibStatus(); return; }
+  if (!test || !test.ok) { lsSet('tabula.gitError', test ? (await ghErr(test)).message : 'nicht erreichbar'); toast(`Verbindung fehlgeschlagen: ${lsGet('tabula.gitError', '')}`); renderLibStatus(); return; }
   const info = await test.json();
   if (!info.private) { lsSet('tabula.sync', null); toast('Das Repository ist öffentlich. Stelle es auf privat, sonst kann jeder deine Notizen lesen.'); renderLibStatus(); return; }
   if (info.permissions && !info.permissions.push) { toast('Der Schlüssel darf nicht schreiben. Gib ihm „Contents: Read and write“.'); }
   toast('Verbunden. Ich gleiche ab …');
-  await gitPull(true);
-  gitDirty = true; await gitPush();
+  lsSet('tabula.gitError', '');
+  await gitSync({ push: true, full: true });
   toast(lsGet('tabula.gitError', '') ? `GitHub: ${lsGet('tabula.gitError', '')}` : 'Mit GitHub abgeglichen');
   renderLibStatus();
 }
@@ -1965,7 +2260,9 @@ async function boot() {
   const persistent = await Store.init();
   const note = $('storageNote');
   if (!persistent) {
-    note.textContent = 'Speichern ist hier nicht möglich. Was du schreibst, geht beim Schließen verloren.';
+    note.textContent = Store.blocked
+      ? 'Tabula ist noch in einem anderen Fenster offen und blockiert die Aktualisierung. Schließe alle Tabula-Fenster und öffne Tabula neu. Deine Notizen sind sicher.'
+      : 'Speichern ist hier nicht möglich. Was du schreibst, geht beim Schließen verloren.';
     note.hidden = false;
   } else if (EMBEDDED) {
     note.textContent = 'Testversion: Notizen bleiben nur in dieser Ansicht und können verschwinden. Für den Alltag nutzt du erz-mentat.github.io/tabula, dort gibt es auch Backups, PDF-Import und den Bild-Export.';
@@ -1973,18 +2270,20 @@ async function boot() {
   }
   if (EMBEDDED) { $('exportBtn').hidden = true; $('importBtn').hidden = true; $('pdfBtn').hidden = true; $('pngBtn').hidden = true; $('backupMenuBtn').hidden = true; }
   if (persistent && !EMBEDDED) { try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) {} }
-  if (persistent && !EMBEDDED && syncCfg()) { toast('Lade Stand von GitHub …'); await gitPull(true); }
+  if (persistent && !EMBEDDED && syncCfg()) { toast('Lade Stand von GitHub …'); await gitSync({ push: false }); }
   try {
     const all = await Store.getAll('notebooks');
     if (!all.length) await seedExample();
   } catch (e) { console.error(e); }
   await showLibrary();
+  try { await ensureBaseline(); } catch (e) { console.error(e); }
   autosaveTick();
+  gitSync({ push: true });
   if (!EMBEDDED && 'serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 }
-window.__tabula = { S, Store, autosaveTick }; // für Tests
+window.__tabula = { S, Store, autosaveTick, gitSync, gitIdle: () => !syncing && !syncAgain, snapTick, DIRTY, pageFile, parsePage, indexFile, blobSha, restoreTo }; // für Tests
 boot();
 })();
 </script>
