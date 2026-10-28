@@ -130,6 +130,9 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .page-row .pr-n{color:var(--muted);font-variant-numeric:tabular-nums;flex:none}
 .page-row .pr-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .action-list.scroll{max-height:min(52vh,420px);overflow-y:auto}
+.action-list .menu-item.heading{border:0;height:auto;padding:14px 10px 4px;font-family:var(--font-display);font-weight:600;font-size:1.05rem;color:var(--fg)}
+.action-list .menu-item.heading:disabled{opacity:1;cursor:default;color:var(--muted)}
+.action-list .menu-item.tool-row{border-style:dashed;color:var(--accent)}
 .menu-item.current{border-color:var(--accent);color:var(--accent)}
 @media (max-width:760px){.page-label{max-width:14ch}}
 #stage{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;background:var(--desk);
@@ -303,6 +306,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
     <div class="tpl-grid" id="fmtGrid"></div>
     <hr>
     <button class="menu-item" id="renamePageBtn" type="button" role="menuitem"><svg class="i"><use href="#i-pen"/></svg>Seite benennen</button>
+    <button class="menu-item" id="sectionsBtn" type="button" role="menuitem"><svg class="i"><use href="#i-cover"/></svg>Themen und Seiten</button>
     <button class="menu-item" id="fitBtn" type="button" role="menuitem"><svg class="i"><use href="#i-fit"/></svg><span id="fitLabel">Ganze Seite zeigen</span></button>
     <button class="menu-item" id="pngBtn" type="button" role="menuitem"><svg class="i"><use href="#i-image"/></svg>Seite als Bild sichern</button>
     <button class="menu-item" id="pdfExportBtn" type="button" role="menuitem"><svg class="i"><use href="#i-pdf"/></svg>Notizbuch als PDF sichern</button>
@@ -719,6 +723,10 @@ function renderBg() {
   ctx.save();
   ctx.beginPath(); ctx.rect(0, 0, PW, PH); ctx.clip();
   const vis = visibleRect();
+  if (S.page.sheet) {   // PDF-Blatt: dünne Rahmen um die einzelnen Seiten
+    ctx.strokeStyle = '#d5dbe6'; ctx.lineWidth = 1.5 / (S.v.s * DPR) * DPR;
+    for (const s of S.strokes) if (s.bg && !s.deleted) ctx.strokeRect(s.x, s.y, s.w, s.h);
+  }
   drawTemplate(ctx, S.page.template, S.v.s * DPR, PW, PH, vis);
   drawStrokes(ctx, S.strokes, vis);
   ctx.restore();
@@ -1352,8 +1360,10 @@ async function insertImage(a) {
   toast('Bild eingefügt. Ziehen verschiebt, der blaue Punkt skaliert, der rote löscht.');
 }
 
+const secOf = p => p && S.nb && (S.nb.sections || []).find(x => x.id === p.sectionId) || null;
 function renderPageUI() {
-  const name = S.page && S.page.title ? S.page.title : '';
+  const sec = secOf(S.page), title = S.page && S.page.title ? S.page.title : '';
+  const name = [sec && sec.title, title].filter(Boolean).join(' · ');
   $('pageName').textContent = name; $('pageName').hidden = !name;
   $('pageCount').textContent = name ? `${S.pi + 1}/${S.pages.length}` : `${S.pi + 1} / ${S.pages.length}`;
   $('pageLabel').setAttribute('aria-label', `${name ? name + ', ' : ''}Seite ${S.pi + 1} von ${S.pages.length}. Seitenliste öffnen`);
@@ -1402,6 +1412,7 @@ function openMenu() {
   menu.hidden = false;
   const mw = menu.offsetWidth;
   menu.style.top = Math.round(r.bottom + 6) + 'px';
+  menu.style.maxHeight = `calc(100% - ${Math.round(r.bottom + 22)}px)`; menu.style.overflowY = 'auto';
   menu.style.left = Math.round(clamp(r.right - mw, 16, window.innerWidth - mw - 16)) + 'px';
   $('menuBtn').setAttribute('aria-expanded', 'true');
 }
@@ -1412,6 +1423,7 @@ document.addEventListener('pointerdown', e => {
 }, true);
 $('fitBtn').onclick = () => { closeMenu(); toggleFit(); };
 $('renamePageBtn').onclick = () => { closeMenu(); renamePage(); };
+$('sectionsBtn').onclick = () => { closeMenu(); pageList(); };
 $('pageLabel').onclick = () => { closeMenu(); pageList(); };
 async function renamePage() {
   if (!S.page) return;
@@ -1419,13 +1431,98 @@ async function renamePage() {
   if (!r) return;
   S.page.title = r.value; touchMeta(); flushMeta(); renderPageUI();
 }
+/* Seiten nach Themen ordnen: erst Seiten ohne Thema, dann jedes Thema in seiner Reihenfolge */
+function orderPages() {
+  const idx = new Map((S.nb.sections || []).map((x, i) => [x.id, i]));
+  const pos = new Map(S.nb.pageIds.map((id, i) => [id, i]));
+  const si = p => idx.has(p.sectionId) ? idx.get(p.sectionId) : -1;
+  S.pages.sort((a, b) => si(a) - si(b) || (pos.get(a.id) ?? 1e9) - (pos.get(b.id) ?? 1e9));
+  S.nb.pageIds = S.pages.map(p => p.id);
+}
+async function commitStructure(gotoId) {
+  orderPages(); S.nb.u = Date.now();
+  await save('notebooks', S.nb);
+  const i = Math.max(0, S.pages.findIndex(p => p.id === (gotoId || (S.page && S.page.id))));
+  await gotoPage(i);
+}
 async function pageList() {
   if (!S.page) return;
-  const actions = S.pages.map((p, i) => ({ id: 'p' + i, label: p.title || 'Ohne Namen', n: i + 1, current: i === S.pi }));
-  actions.push({ id: 'rename', label: 'Diese Seite benennen', plain: true });
+  const secs = S.nb.sections || [], actions = [];
+  const row = (p) => { const i = S.pages.indexOf(p); return { id: 'p' + i, label: p.title || 'Ohne Namen', n: i + 1, current: i === S.pi }; };
+  const loose = S.pages.filter(p => !secOf(p));
+  if (secs.length && loose.length) actions.push({ id: 'none', label: 'Ohne Thema', heading: true, plain: true });
+  loose.forEach(p => actions.push(row(p)));
+  for (const sec of secs) {
+    actions.push({ id: 's:' + sec.id, label: sec.title, heading: true });
+    S.pages.filter(p => p.sectionId === sec.id).forEach(p => actions.push(row(p)));
+  }
+  actions.push({ id: 'newsec', label: '＋ Neues Thema', tool: true });
+  actions.push({ id: 'move', label: 'Diese Seite in ein Thema verschieben', tool: true });
+  actions.push({ id: 'rename', label: 'Diese Seite benennen', tool: true });
   const a = await dialog({ title: S.nb.title, actions, scroll: true });
-  if (a === 'rename') renamePage();
-  else if (a && a[0] === 'p') { const i = +a.slice(1); if (i !== S.pi) gotoPage(i); }
+  if (!a) return;
+  if (a === 'rename') return renamePage();
+  if (a === 'newsec') return newSection();
+  if (a === 'move') return movePage();
+  if (a.startsWith('s:')) return sectionActions(a.slice(2));
+  if (a[0] === 'p') { const i = +a.slice(1); if (i !== S.pi) gotoPage(i); }
+}
+async function newSection() {
+  const r = await dialog({ title: 'Neues Thema', text: 'Das Thema bekommt eine erste leere Seite mit dem Papier der aktuellen Seite.', input: { label: 'Name des Themas', value: '' }, confirm: 'Anlegen' });
+  if (!r || !r.value) return;
+  flushMeta();
+  const now = Date.now(), sec = { id: uid(), title: r.value, t: now };
+  S.nb.sections = [...(S.nb.sections || []), sec];
+  const p = { id: uid(), notebookId: S.nb.id, sectionId: sec.id, template: S.page.template, format: S.page.format === 'custom' ? 'a4' : (S.page.format || 'a4'), t: now, u: now };
+  if (p.template === 'blank' && S.page.format === 'custom') p.template = 'lined';
+  S.pages.push(p); S.nb.pageIds.push(p.id);
+  await save('pages', p);
+  await commitStructure(p.id);
+  toast(`Thema „${sec.title}“ angelegt`);
+}
+async function movePage() {
+  const secs = S.nb.sections || [];
+  if (!secs.length) { toast('Lege zuerst ein Thema an.'); return newSection(); }
+  const cur = S.page.sectionId;
+  const actions = [{ id: '', label: 'Ohne Thema', current: !secOf(S.page) }, ...secs.map(x => ({ id: x.id, label: x.title, current: x.id === cur }))];
+  const target = await dialog({ title: 'Seite verschieben nach', actions: actions.map(x => ({ ...x, id: 'm:' + x.id })), scroll: true });
+  if (!target) return;
+  const sid = target.slice(2) || null;
+  if ((S.page.sectionId || null) === sid) return;
+  S.page.sectionId = sid; S.page.u = Date.now();
+  S.nb.pageIds = S.nb.pageIds.filter(id => id !== S.page.id).concat(S.page.id);   // ans Ende des Themas
+  await save('pages', S.page);
+  await commitStructure(S.page.id);
+  toast(sid ? `Seite nach „${secs.find(x => x.id === sid).title}“ verschoben` : 'Seite aus dem Thema genommen');
+}
+async function sectionActions(id) {
+  const secs = S.nb.sections || [], i = secs.findIndex(x => x.id === id); if (i < 0) return;
+  const sec = secs[i];
+  const acts = [{ id: 'open', label: 'Zur ersten Seite' }, { id: 'add', label: 'Neue Seite in diesem Thema' }, { id: 'rename', label: 'Umbenennen' }];
+  if (i > 0) acts.push({ id: 'up', label: 'Nach oben' });
+  if (i < secs.length - 1) acts.push({ id: 'down', label: 'Nach unten' });
+  acts.push({ id: 'del', label: 'Thema auflösen', danger: true });
+  const a = await dialog({ title: sec.title, actions: acts });
+  const pagesOf = () => S.pages.filter(p => p.sectionId === id);
+  if (a === 'open') { const p = pagesOf()[0]; if (p) gotoPage(S.pages.indexOf(p)); }
+  else if (a === 'add') {
+    const last = pagesOf().slice(-1)[0] || S.page, now = Date.now();
+    const p = { id: uid(), notebookId: S.nb.id, sectionId: id, template: last.format === 'custom' ? 'lined' : last.template, format: last.format === 'custom' ? 'a4' : (last.format || 'a4'), t: now, u: now };
+    S.pages.push(p); S.nb.pageIds.push(p.id); await save('pages', p); await commitStructure(p.id);
+  } else if (a === 'rename') {
+    const r = await dialog({ title: 'Thema umbenennen', input: { label: 'Name', value: sec.title }, confirm: 'Sichern' });
+    if (r && r.value) { S.nb.sections = secs.map(x => x.id === id ? { ...x, title: r.value } : x); await commitStructure(); }
+  } else if (a === 'up' || a === 'down') {
+    const j = a === 'up' ? i - 1 : i + 1, arr = secs.slice(); [arr[i], arr[j]] = [arr[j], arr[i]];
+    S.nb.sections = arr; await commitStructure();
+  } else if (a === 'del') {
+    const ok = await dialog({ title: `Thema „${sec.title}“ auflösen?`, text: 'Die Seiten bleiben erhalten und stehen danach unter „Ohne Thema“.', confirm: 'Auflösen', danger: true });
+    if (!ok) return;
+    const now = Date.now(), moved = pagesOf();
+    moved.forEach(p => { p.sectionId = null; p.u = now; });
+    await save('pages', moved);
+    S.nb.sections = secs.filter(x => x.id !== id); await commitStructure();
+  }
 }
 $('pngBtn').onclick = () => { closeMenu(); exportPagePNG(); };
 $('backupMenuBtn').onclick = () => { closeMenu(); exportBackup(); };
@@ -1517,7 +1614,8 @@ function dialog({ title, text, input, fields, covers, templates, actions, scroll
     if (actions) {
       const list = document.createElement('div'); list.className = 'action-list' + (scroll ? ' scroll' : '');
       actions.forEach(a => {
-        const b = document.createElement('button'); b.type = 'button'; b.className = 'menu-item' + (a.danger ? ' danger' : '') + (a.current ? ' current' : '');
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'menu-item' + (a.danger ? ' danger' : '') + (a.current ? ' current' : '') + (a.heading ? ' heading' : '') + (a.tool ? ' tool-row' : '');
+        if (a.heading && a.plain) b.disabled = true;
         if (a.n) { b.innerHTML = '<span class="page-row"><span class="pr-t"></span><span class="pr-n"></span></span>'; b.querySelector('.pr-t').textContent = a.label; b.querySelector('.pr-n').textContent = 'S. ' + a.n; if (a.current) b.setAttribute('aria-current', 'page'); }
         else b.textContent = a.label;
         b.onclick = () => done(a.id); list.appendChild(b);
@@ -1656,8 +1754,8 @@ async function drawThumb(cv, nb) {
   strokes.sort((a, b) => a.t - b.t);
   await loadAssets(imageIds(strokes));
   const f = fmtOf(page);
-  if (f.w > f.h) { cv.width = 420; cv.height = Math.round(420 * f.h / f.w); }
-  cv.style.aspectRatio = `${f.w} / ${f.h}`;
+  if (f.w > f.h) { cv.width = 420; cv.height = Math.round(420 * f.h / f.w); cv.style.aspectRatio = `${f.w} / ${f.h}`; }
+  else cv.style.aspectRatio = '210 / 297';   // hohe PDF-Blätter zeigen nur ihren Anfang
   const ctx = cv.getContext('2d'), k = cv.width / f.w;
   ctx.setTransform(k, 0, 0, k, 0, 0);
   ctx.fillStyle = PAPER; ctx.fillRect(0, 0, f.w, f.h);
@@ -1722,6 +1820,8 @@ async function openNotebook(id, index = 0) {
   const map = new Map(pages.map(p => [p.id, p]));
   S.nb = nb;
   S.pages = nb.pageIds.map(pid => map.get(pid)).filter(p => p && !p.deleted);
+  for (const p of pages) if (!p.deleted && !nb.pageIds.includes(p.id)) S.pages.push(p);   // verwaiste Seiten nicht verlieren
+  orderPages();
   if (!S.pages.length) {
     const now = Date.now();
     const p = { id: uid(), notebookId: nb.id, template: 'grid', t: now, u: now };
@@ -1752,8 +1852,11 @@ async function addPage() {
   if (!S.page) return;
   flushMeta();
   const now = Date.now();
-  const p = { id: uid(), notebookId: S.nb.id, template: S.page.template, format: S.page.format || 'a4', t: now, u: now };
-  if (S.page.format === 'custom') { p.w = S.page.w; p.h = S.page.h; p.template = 'blank'; }
+  const p = { id: uid(), notebookId: S.nb.id, sectionId: S.page.sectionId || null, template: S.page.template, format: S.page.format || 'a4', t: now, u: now };
+  if (S.page.format === 'custom') {   // hinter einem PDF-Blatt folgt eine normale Seite in derselben Breite
+    const prev = S.pages.slice(0, S.pi).reverse().find(x => x.format !== 'custom');
+    p.format = prev ? prev.format || 'a4' : 'a4'; p.template = prev ? prev.template : 'lined';
+  }
   S.pages.splice(S.pi + 1, 0, p);
   S.nb.pageIds = S.pages.map(x => x.id); S.nb.u = now;
   await save('pages', p); await save('notebooks', S.nb);
@@ -2041,30 +2144,65 @@ function loadPdfJs() {
   });
   return pdfjsP;
 }
-/* PDF-Seiten als Seiten im Originalformat anlegen; liefert die neuen Seiten */
+async function renderPdfPage(doc, i) {
+  const pg = await doc.getPage(i);
+  const v1 = pg.getViewport({ scale: 1 });
+  const vp = pg.getViewport({ scale: Math.min(3, 2000 / Math.max(v1.width, v1.height)) });
+  const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+  const ctx = c.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+  await pg.render({ canvasContext: ctx, viewport: vp }).promise;
+  const now = Date.now();
+  const asset = { id: uid(), data: c.toDataURL('image/jpeg', 0.85), w: c.width, h: c.height, t: now, u: now };
+  c.width = c.height = 0; try { pg.cleanup(); } catch (e) {}
+  await save('assets', asset);
+  return { asset, w: Math.round(v1.width * 254 / 72), h: Math.round(v1.height * 254 / 72) };
+}
+async function openPdf(lib, file) {
+  try { return await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise; }
+  catch (e) { toast(`„${file.name}“ lässt sich nicht öffnen.`); return null; }
+}
+/* Bibliothek: jede PDF-Seite wird eine eigene Seite im neuen Notizbuch */
 async function pdfToPages(lib, file, notebookId) {
-  let doc;
-  try { doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise; }
-  catch (e) { toast(`„${file.name}“ lässt sich nicht öffnen.`); return []; }
+  const doc = await openPdf(lib, file); if (!doc) return [];
   const name = file.name.replace(/\.pdf$/i, '') || 'PDF', now = Date.now(), pages = [];
   for (let i = 1; i <= doc.numPages; i++) {
     toast(`${name}: Seite ${i} von ${doc.numPages}`);
-    const pg = await doc.getPage(i);
-    const v1 = pg.getViewport({ scale: 1 });
-    const vp = pg.getViewport({ scale: Math.min(3, 2000 / Math.max(v1.width, v1.height)) });
-    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
-    const ctx = c.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
-    await pg.render({ canvasContext: ctx, viewport: vp }).promise;
-    const t = now + i, w = Math.round(v1.width * 254 / 72), h = Math.round(v1.height * 254 / 72);
-    const asset = { id: uid(), data: c.toDataURL('image/jpeg', 0.85), w: c.width, h: c.height, t, u: t };
-    const page = { id: uid(), notebookId, template: 'blank', format: 'custom', w, h, t, u: t, title: doc.numPages > 1 ? `${name} ${i}` : name };
-    const img = { id: uid(), pageId: page.id, tool: 'image', bg: 1, asset: asset.id, x: 0, y: 0, w, h, pts: [], deleted: 0, t, u: t };
-    await save('assets', asset); await save('pages', page); await save('strokes', img);
+    const r = await renderPdfPage(doc, i), t = now + i;
+    const page = { id: uid(), notebookId, template: 'blank', format: 'custom', w: r.w, h: r.h, t, u: t, title: doc.numPages > 1 ? `${name} ${i}` : name };
+    const img = { id: uid(), pageId: page.id, tool: 'image', bg: 1, asset: r.asset.id, x: 0, y: 0, w: r.w, h: r.h, pts: [], deleted: 0, t, u: t };
+    await save('pages', page); await save('strokes', img);
     pages.push(page);
-    c.width = c.height = 0; try { pg.cleanup(); } catch (e) {}
   }
   try { doc.destroy(); } catch (e) {}
   return pages;
+}
+/* Im Heft: alle Seiten einer PDF-Datei untereinander auf ein Blatt (höchstens 15 pro Blatt, sonst wird das Blatt zu lang für den PDF-Export) */
+const SHEET_MAX = 15, SHEET_GAP = 80, SHEET_PAD = 60;
+async function pdfToSheets(lib, file, notebookId, sectionId) {
+  const doc = await openPdf(lib, file); if (!doc) return [];
+  const name = file.name.replace(/\.pdf$/i, '') || 'PDF', parts = [];
+  const total = doc.numPages, chunks = Math.ceil(total / SHEET_MAX);
+  for (let c = 0; c < chunks; c++) {
+    const rendered = [];
+    for (let i = c * SHEET_MAX + 1; i <= Math.min(total, (c + 1) * SHEET_MAX); i++) {
+      toast(`${name}: Seite ${i} von ${total}`);
+      rendered.push(await renderPdfPage(doc, i));
+    }
+    const w = Math.max(...rendered.map(r => r.w)) + 2 * SHEET_PAD;
+    const h = rendered.reduce((acc, r) => acc + r.h, 0) + SHEET_GAP * (rendered.length - 1) + 2 * SHEET_PAD;
+    const now = Date.now() + c;
+    const page = { id: uid(), notebookId, sectionId: sectionId || null, template: 'blank', format: 'custom', w, h, t: now, u: now,
+                   title: chunks > 1 ? `${name} (${c + 1}/${chunks})` : name, sheet: 1 };
+    let y = SHEET_PAD; const imgs = [];
+    rendered.forEach((r, k) => {
+      imgs.push({ id: uid(), pageId: page.id, tool: 'image', bg: 1, asset: r.asset.id, x: Math.round((w - r.w) / 2), y, w: r.w, h: r.h, pts: [], deleted: 0, t: now + k, u: now + k });
+      y += r.h + SHEET_GAP;
+    });
+    await save('pages', page); await save('strokes', imgs);
+    parts.push(page);
+  }
+  try { doc.destroy(); } catch (e) {}
+  return parts;
 }
 async function importPdfs(files) {
   let lib;
@@ -2087,13 +2225,13 @@ async function insertPdfPages(file) {
   let lib;
   try { lib = await loadPdfJs(); } catch (e) { toast('Der PDF-Leser ließ sich nicht laden. Prüfe die Internetverbindung.'); return; }
   flushMeta();
-  const pages = await pdfToPages(lib, file, S.nb.id);
+  const pages = await pdfToSheets(lib, file, S.nb.id, S.page.sectionId);
   if (!pages.length) return;
   S.pages.splice(S.pi + 1, 0, ...pages);
   S.nb.pageIds = S.pages.map(p => p.id); S.nb.u = Date.now();
   await save('notebooks', S.nb);
   await gotoPage(S.pi + 1);
-  toast(pages.length === 1 ? 'PDF als neue Seite eingefügt' : `${pages.length} PDF-Seiten eingefügt`);
+  toast(pages.length === 1 ? 'PDF als ein Blatt eingefügt' : `PDF auf ${pages.length} Blätter verteilt eingefügt`);
 }
 $('pdfBtn').onclick = () => $('pdfFile').click();
 $('pdfFile').onchange = e => { const fs = [...(e.target.files || [])]; e.target.value = ''; if (fs.length) importPdfs(fs); };
