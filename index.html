@@ -134,6 +134,15 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .action-list .menu-item.heading:disabled{opacity:1;cursor:default;color:var(--muted)}
 .action-list .menu-item.tool-row{border-style:dashed;color:var(--accent)}
 .menu-item.current{border-color:var(--accent);color:var(--accent)}
+.pick-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 6px}
+.pick-tools .btn{height:34px;padding:0 12px;font-size:.88rem}
+.pick-cover{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.9rem;color:var(--muted)}
+.pick-row{display:flex;align-items:center;gap:10px;min-height:42px;padding:0 10px;border-radius:9px;font-size:.94rem;cursor:pointer}
+.pick-row:hover{background:var(--accent-soft)}
+.pick-row.group{min-height:46px;padding-top:8px;font-family:var(--font-display);font-weight:600;font-size:1.02rem}
+.pick-row input{width:20px;height:20px;flex:none;accent-color:var(--accent);margin:0}
+.pick-row .page-row{min-width:0}
+.pick-cover input{width:18px;height:18px;accent-color:var(--accent);margin:0}
 @media (max-width:760px){.page-label{max-width:14ch}}
 #stage{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;background:var(--desk);
   touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
@@ -309,7 +318,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
     <button class="menu-item" id="sectionsBtn" type="button" role="menuitem"><svg class="i"><use href="#i-cover"/></svg>Themen und Seiten</button>
     <button class="menu-item" id="fitBtn" type="button" role="menuitem"><svg class="i"><use href="#i-fit"/></svg><span id="fitLabel">Ganze Seite zeigen</span></button>
     <button class="menu-item" id="pngBtn" type="button" role="menuitem"><svg class="i"><use href="#i-image"/></svg>Seite als Bild sichern</button>
-    <button class="menu-item" id="pdfExportBtn" type="button" role="menuitem"><svg class="i"><use href="#i-pdf"/></svg>Notizbuch als PDF sichern</button>
+    <button class="menu-item" id="pdfExportBtn" type="button" role="menuitem"><svg class="i"><use href="#i-pdf"/></svg>Seiten als PDF sichern</button>
     <button class="menu-item" id="backupMenuBtn" type="button" role="menuitem"><svg class="i"><use href="#i-save"/></svg>Backup sichern</button>
     <button class="menu-item danger" id="delPageBtn" type="button" role="menuitem"><svg class="i"><use href="#i-trash"/></svg>Seite löschen</button>
   </div>
@@ -1545,7 +1554,7 @@ document.addEventListener('keydown', e => {
 
 /* ================= Dialoge & Hinweise ================= */
 let dialogCancel = () => {};
-function dialog({ title, text, input, fields, covers, templates, actions, scroll, confirm, danger, cancel = 'Abbrechen' }) {
+function dialog({ title, text, input, fields, covers, templates, actions, scroll, confirm, danger, cancel = 'Abbrechen', custom }) {
   return new Promise(resolve => {
     const scrim = $('scrim'), form = $('dlg');
     form.textContent = '';
@@ -1611,6 +1620,7 @@ function dialog({ title, text, input, fields, covers, templates, actions, scroll
       l2.appendChild(g2); form.appendChild(l2);
     }
     const done = val => { scrim.hidden = true; form.onsubmit = null; dialogCancel = () => {}; resolve(val); };
+    const customGet = custom ? custom(form) : null;
     if (actions) {
       const list = document.createElement('div'); list.className = 'action-list' + (scroll ? ' scroll' : '');
       actions.forEach(a => {
@@ -1627,11 +1637,11 @@ function dialog({ title, text, input, fields, covers, templates, actions, scroll
     const c = document.createElement('button'); c.type = 'button'; c.className = 'btn'; c.textContent = cancel; c.onclick = () => done(null);
     row.appendChild(c);
     if (confirm) {
-      const ok = document.createElement('button'); ok.type = 'submit'; ok.className = 'btn ' + (danger ? 'danger' : 'primary'); ok.textContent = confirm;
+      const ok = document.createElement('button'); ok.type = 'submit'; ok.className = 'btn ' + (danger ? 'danger' : 'primary'); ok.textContent = confirm; ok.id = 'dlgOk';
       row.appendChild(ok);
     }
     form.appendChild(row);
-    form.onsubmit = ev => { ev.preventDefault(); done({ value: inp ? inp.value.trim() : null, template: tpl, format: fmt, cover: cov, coverImg: covImg, fields: Object.fromEntries(Object.entries(fieldEls).map(([k, el]) => [k, el.value.trim()])) }); };
+    form.onsubmit = ev => { ev.preventDefault(); done({ value: inp ? inp.value.trim() : null, template: tpl, format: fmt, cover: cov, coverImg: covImg, fields: Object.fromEntries(Object.entries(fieldEls).map(([k, el]) => [k, el.value.trim()])), custom: customGet ? customGet() : null }); };
     dialogCancel = () => done(null);
     scrim.hidden = false;
     setTimeout(() => { if (inp) { inp.focus(); inp.select(); } }, 30);
@@ -2052,14 +2062,97 @@ async function buildPdf(pages) {
   return new Blob(parts, { type: 'application/pdf' });
 }
 let pdfBusy = false;
+async function notebookPages(nb) {
+  flushMeta();
+  const all = await Store.getAll('pages', 'notebookId', nb.id), map = new Map(all.map(x => [x.id, x]));
+  return nb.pageIds.map(id => map.get(id)).filter(x => x && !x.deleted);
+}
+/* Auswahl: Seiten nach Themen gruppiert, ein Haken am Thema wählt alle seine Seiten */
 async function exportNotebookPdf(nb) {
   if (!nb || pdfBusy) return;
+  const pages = await notebookPages(nb);
+  if (!pages.length) { toast('Das Notizbuch hat noch keine Seiten.'); return; }
+  const secs = nb.sections || [], known = new Set(secs.map(x => x.id));
+  const groups = [];
+  const loose = pages.filter(p => !known.has(p.sectionId));
+  if (loose.length) groups.push({ id: null, title: secs.length ? 'Ohne Thema' : null, pages: loose });
+  for (const sec of secs) { const ps = pages.filter(p => p.sectionId === sec.id); if (ps.length) groups.push({ id: sec.id, title: sec.title, pages: ps }); }
+  const num = new Map(pages.map((p, i) => [p.id, i + 1]));
+  // Vorauswahl: das Thema der offenen Seite, sonst alles
+  const here = S.nb && S.nb.id === nb.id && S.page && known.has(S.page.sectionId) ? S.page.sectionId : undefined;
+  const chosen = new Set(pages.filter(p => here === undefined || p.sectionId === here).map(p => p.id));
+  let withCover = !!nb.cover && here === undefined;
+  const r = await dialog({
+    title: 'Als PDF sichern', text: 'Wähle die Seiten. Ein Haken an einem Thema nimmt alle seine Seiten mit.',
+    confirm: 'PDF sichern',
+    custom: form => {
+      const tools = document.createElement('div'); tools.className = 'pick-tools';
+      const allB = document.createElement('button'); allB.type = 'button'; allB.className = 'btn'; allB.textContent = 'Alle';
+      const noneB = document.createElement('button'); noneB.type = 'button'; noneB.className = 'btn'; noneB.textContent = 'Keine';
+      tools.append(allB, noneB);
+      let coverBox = null;
+      if (nb.cover) {
+        const l = document.createElement('label'); l.className = 'pick-cover';
+        coverBox = document.createElement('input'); coverBox.type = 'checkbox'; coverBox.checked = withCover;
+        coverBox.onchange = () => { withCover = coverBox.checked; };
+        l.append(coverBox, 'Deckblatt');
+        tools.appendChild(l);
+      }
+      form.appendChild(tools);
+      const list = document.createElement('div'); list.className = 'action-list scroll';
+      const boxes = [], heads = [];
+      const sync = () => {
+        for (const h of heads) {
+          const n = h.g.pages.filter(p => chosen.has(p.id)).length;
+          h.box.checked = n === h.g.pages.length; h.box.indeterminate = n > 0 && n < h.g.pages.length;
+        }
+        for (const b of boxes) b.box.checked = chosen.has(b.p.id);
+        const ok = $('dlgOk'), n = chosen.size;
+        if (ok) { ok.textContent = n ? `PDF sichern (${n} ${n === 1 ? 'Seite' : 'Seiten'})` : 'PDF sichern'; ok.disabled = !n; }
+      };
+      for (const g of groups) {
+        if (g.title) {
+          const l = document.createElement('label'); l.className = 'pick-row group';
+          const box = document.createElement('input'); box.type = 'checkbox';
+          const t = document.createElement('span'); t.textContent = g.title;
+          l.append(box, t); list.appendChild(l);
+          box.onchange = () => { g.pages.forEach(p => box.checked ? chosen.add(p.id) : chosen.delete(p.id)); sync(); };
+          heads.push({ g, box });
+        }
+        for (const p of g.pages) {
+          const l = document.createElement('label'); l.className = 'pick-row';
+          const box = document.createElement('input'); box.type = 'checkbox';
+          const row = document.createElement('span'); row.className = 'page-row';
+          row.innerHTML = '<span class="pr-t"></span><span class="pr-n"></span>';
+          row.querySelector('.pr-t').textContent = p.title || 'Ohne Namen';
+          row.querySelector('.pr-n').textContent = 'S. ' + num.get(p.id);
+          l.append(box, row); list.appendChild(l);
+          box.onchange = () => { box.checked ? chosen.add(p.id) : chosen.delete(p.id); sync(); };
+          boxes.push({ p, box });
+        }
+      }
+      allB.onclick = () => { pages.forEach(p => chosen.add(p.id)); sync(); };
+      noneB.onclick = () => { chosen.clear(); sync(); };
+      form.appendChild(list);
+      setTimeout(sync, 0);
+      return () => ({ ids: pages.filter(p => chosen.has(p.id)).map(p => p.id), cover: withCover });
+    }
+  });
+  if (!r || !r.custom || !r.custom.ids.length) return;
+  const sel = new Set(r.custom.ids), pick = pages.filter(p => sel.has(p.id));
+  // Dateiname: genau ein vollständiges Thema → Heft und Thema im Namen
+  const full = groups.filter(g => g.pages.every(p => sel.has(p.id)));
+  const name = pick.length === pages.length ? nb.title
+    : full.length === 1 && full[0].title && full[0].pages.length === pick.length ? `${nb.title} ${full[0].title}`
+    : `${nb.title} Auswahl`;
+  return writePdf(nb, pick, r.custom.cover, name);
+}
+async function writePdf(nb, pages, withCover, name) {
+  if (pdfBusy) return;
   pdfBusy = true;
   try {
-    flushMeta();
-    const all = await Store.getAll('pages', 'notebookId', nb.id), map = new Map(all.map(x => [x.id, x]));
-    const pages = nb.pageIds.map(id => map.get(id)).filter(x => x && !x.deleted), out = [];
-    if (nb.cover) {   // Deckblatt als erste Seite, A4
+    const out = [];
+    if (withCover && nb.cover) {   // Deckblatt als erste Seite, A4
       const cv = document.createElement('canvas'); await drawThumb(cv, nb);
       const big = document.createElement('canvas'); big.width = 1260; big.height = 1782;
       big.getContext('2d').drawImage(cv, 0, 0, big.width, big.height);
@@ -2075,7 +2168,7 @@ async function exportNotebookPdf(nb) {
     }
     const blob = await buildPdf(out);
     toast('PDF fertig');
-    await saveFile(blob, `${slug(nb.title)}_${stamp()}.pdf`);
+    await saveFile(blob, `${slug(name)}_${stamp()}.pdf`);
   } catch (e) { console.error(e); toast('Das PDF ließ sich nicht erstellen.'); }
   finally { pdfBusy = false; }
 }
