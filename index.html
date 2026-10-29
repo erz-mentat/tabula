@@ -141,7 +141,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 @media (max-width:760px){.page-label{max-width:14ch}}
 #stage{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;background:var(--desk);
   touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-#stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#stage > canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
 .selbar{position:absolute;z-index:3;display:flex;align-items:center;gap:2px;padding:4px;background:var(--chrome);border:1px solid var(--line);
   border-radius:12px;box-shadow:0 8px 24px var(--shadow);touch-action:manipulation;white-space:nowrap}
 .selbar button{height:36px;padding:0 12px;border-radius:9px;font-size:.88rem;font-weight:500}
@@ -264,6 +264,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .cardbar{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:6px;padding:6px 6px 6px 14px;
   background:var(--chrome);border:1px solid var(--accent);border-radius:12px;box-shadow:0 8px 24px var(--shadow);width:max-content;max-width:calc(100% - 32px);font-size:.86rem}
 .cardbar span{min-width:0}
+.cardprev{width:84px;height:44px;flex:none;border-radius:5px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line)}
 .cardbar button{height:34px;padding:0 11px;border-radius:9px;font-weight:500;white-space:nowrap}
 .cardbar button:hover{background:var(--accent-soft)}
 .selbar button.accent{color:var(--accent)}
@@ -348,6 +349,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
     <header class="study-head">
       <button class="icon-btn" id="studyBack" type="button" aria-label="Abfrage beenden"><svg class="i"><use href="#i-back"/></svg></button>
       <div class="study-title"><b id="studyTitle"></b><span id="studyMeta"></span></div>
+      <button class="btn" id="studyDel" type="button">Löschen</button>
       <button class="btn" id="studySrc" type="button">Zur Quelle</button>
     </header>
     <div class="study-body" id="studyBody">
@@ -405,6 +407,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       <canvas id="bgCanvas"></canvas>
       <canvas id="liveCanvas"></canvas>
       <div class="cardbar" id="cardBar" hidden role="status">
+        <canvas class="cardprev" id="cardPrev" aria-label="Gemerkte Vorderseite"></canvas>
         <span id="cardBarText">Vorderseite gemerkt. Kreise jetzt die Antwort ein und tippe auf „Als Rückseite“.</span>
         <button type="button" id="cardTypeBtn">Antwort tippen</button>
         <button type="button" id="cardCancelBtn">Abbrechen</button>
@@ -897,6 +900,18 @@ function renderLive() {
     ctx.lineWidth = 1.6 * k; ctx.strokeStyle = '#2347c5'; ctx.setLineDash([6 * k, 5 * k]); ctx.stroke(); ctx.setLineDash([]);
   }
   const box = S.tool === 'select' && !lasso ? selBox() : null;
+  if (box) {   // gewählte Striche blau einfärben, damit klar ist, was die Auswahl enthält
+    ctx.save(); ctx.globalAlpha = 0.55; ctx.fillStyle = '#3d6bff';
+    for (const s of selItems()) if (s.tool !== 'image') ctx.fill(entry(s).path);
+    ctx.restore();
+  }
+  if (flash && performance.now() < flash.until) {
+    const k = 1 / S.v.s, [fx0, fy0, fx1, fy1] = flash.box, pad = 14 * k;
+    ctx.save(); ctx.globalAlpha = Math.min(1, (flash.until - performance.now()) / 600);
+    ctx.fillStyle = 'rgba(255,210,58,.28)'; ctx.fillRect(fx0 - pad, fy0 - pad, fx1 - fx0 + 2 * pad, fy1 - fy0 + 2 * pad);
+    ctx.lineWidth = 3 * k; ctx.strokeStyle = '#e0a800'; ctx.strokeRect(fx0 - pad, fy0 - pad, fx1 - fx0 + 2 * pad, fy1 - fy0 + 2 * pad);
+    ctx.restore(); requestLive();
+  } else if (flash) flash = null;
   if (box) {
     const k = 1 / S.v.s, [x0, y0, x1, y1] = box;
     ctx.globalAlpha = 1;
@@ -951,7 +966,7 @@ function zoomAt(cx, cy, f) {
 function toggleFit() { fitView(S.fitMode === 'width' ? 'page' : 'width'); requestBg(); }
 
 /* ================= Eingabe ================= */
-let ink = null, eraser = null, lastInkT = -1e9, sel = null, drag = null, lasso = null;
+let ink = null, eraser = null, lastInkT = -1e9, sel = null, drag = null, lasso = null, flash = null;
 const touches = new Map();
 let gesture = null, tapInfo = null, lastTap = null;
 
@@ -2899,7 +2914,7 @@ function faceIn(f) {
 }
 function cardsFile(cards) {
   return cards.slice().sort(byTime).map(c => c.deleted ? JSON.stringify({ id: c.id, t: c.t, cu: c.cu, d: 1 })
-    : JSON.stringify({ id: c.id, t: c.t, cu: c.cu, sec: c.sectionId || null, src: c.src || null, f: faceOut(c.front), b: faceOut(c.back) })).join('\n') + '\n';
+    : JSON.stringify({ id: c.id, t: c.t, cu: c.cu, sec: c.sectionId || null, src: c.src || null, sb: c.srcBox || null, f: faceOut(c.front), b: faceOut(c.back) })).join('\n') + '\n';
 }
 function reviewFile(cards) {
   const ls = cards.slice().sort((a, b) => (a.id < b.id ? -1 : 1)).map(c => `${JSON.stringify(c.id)}:[${c.box || 1},${c.due || 0},${c.ru || 0}]`);
@@ -2914,7 +2929,7 @@ async function mergeCardFiles(nbId, contentText, reviewText) {
     if (ex && (ex.cu || 0) >= (o.cu || 0)) continue;
     const base = ex || { id: o.id, notebookId: nbId, box: 1, due: 0, ru: 0 };
     const c = o.d ? { ...base, t: o.t, cu: o.cu, deleted: 1 }
-      : { ...base, t: o.t, cu: o.cu, sectionId: o.sec || null, src: o.src || null, front: faceIn(o.f), back: faceIn(o.b), deleted: 0 };
+      : { ...base, t: o.t, cu: o.cu, sectionId: o.sec || null, src: o.src || null, srcBox: o.sb || null, front: faceIn(o.f), back: faceIn(o.b), deleted: 0 };
     c.u = Math.max(c.cu || 0, c.ru || 0); out.set(c.id, c);
   }
   if (reviewText != null) {
@@ -2942,26 +2957,29 @@ function faceFromSelection() {
     for (let j = 0; j < pts.length; j += 3) { pts[j] = r1(pts[j] + dx); pts[j + 1] = r1(pts[j + 1] + dy); }
     return { tool: s.tool, color: s.color, size: s.size, pr: s.pr || 0, pts };
   });
-  return { w: r1(b[2] - b[0] + 2 * m), h: r1(b[3] - b[1] + 2 * m), items: out };
+  return { w: r1(b[2] - b[0] + 2 * m), h: r1(b[3] - b[1] + 2 * m), items: out, box: b.map(r1) };
 }
 const cardBar = $('cardBar');
 for (const t of ['pointerdown', 'touchstart']) cardBar.addEventListener(t, e => e.stopPropagation(), { passive: true });
-function showCardBar() { cardBar.hidden = !cardDraft; }
+function showCardBar() { cardBar.hidden = !cardDraft; if (cardDraft) requestAnimationFrame(() => drawFace($('cardPrev'), cardDraft.front)); }
 async function cardFromSelection() {
   const face = faceFromSelection(); if (!face || !S.page) return;
   sel = null; requestLive();
   if (!cardDraft) {
-    cardDraft = { nb: S.nb.id, sec: S.page.sectionId || null, src: S.page.id, front: face };
+    const srcBox = face.box; delete face.box;
+    cardDraft = { nb: S.nb.id, sec: S.page.sectionId || null, src: S.page.id, srcBox, front: face };
+    drawFace($('cardPrev'), face);
     showCardBar();
     return;
   }
+  delete face.box;
   await finishCard(face);
 }
 async function finishCard(back) {
   const d = cardDraft; cardDraft = null; showCardBar();
   if (!d) return;
   const now = Date.now();
-  const c = { id: uid(), notebookId: d.nb, sectionId: d.sec, src: d.src, front: d.front, back, box: 1, due: 0, t: now, cu: now, ru: now, u: now, deleted: 0 };
+  const c = { id: uid(), notebookId: d.nb, sectionId: d.sec, src: d.src, srcBox: d.srcBox || null, front: d.front, back, box: 1, due: 0, t: now, cu: now, ru: now, u: now, deleted: 0 };
   await save('cards', c);
   const n = (await Store.getAll('cards', 'notebookId', d.nb)).filter(x => !x.deleted).length;
   toast(`Karte angelegt · ${n} ${n === 1 ? 'Karte' : 'Karten'} in diesem Heft`);
@@ -3058,15 +3076,33 @@ async function cardList(nb) {
   if (a === 'show') startStudy([nb.id], true, 'decks', [c.id]);
   else if (a === 'src') openSource(c);
   else if (a === 'reset') { const now = Date.now(); Object.assign(c, { box: 1, due: 0, ru: now, u: now }); await save('cards', c); showDecks(); }
-  else if (a === 'del') { const now = Date.now(); Object.assign(c, { deleted: 1, cu: now, u: now }); await save('cards', c); toast('Karte gelöscht'); showDecks(); }
+  else if (a === 'del') { if (await deleteCard(c)) showDecks(); }
+}
+async function deleteCard(c) {
+  const ok = await dialog({ title: 'Karte löschen?', text: 'Die Karte verschwindet aus dem Karteikasten. Deine Notizen auf der Seite bleiben unverändert.', confirm: 'Löschen', danger: true });
+  if (!ok) return false;
+  const now = Date.now(); Object.assign(c, { deleted: 1, cu: now, u: now });
+  await save('cards', c); toast('Karte gelöscht'); updateDueBadge();
+  return true;
 }
 async function openSource(c) {
   if (!c || !c.src) return;
-  const page = await Store.get('pages', c.src);
-  if (!page || page.deleted) { toast('Die Seite dieser Karte gibt es nicht mehr.'); return; }
-  await openNotebook(page.notebookId);
-  const i = S.pages.findIndex(p => p.id === c.src);
-  if (i >= 0) await gotoPage(i);
+  try {
+    const page = await Store.get('pages', c.src);
+    if (!page || page.deleted) { toast('Die Seite dieser Karte gibt es nicht mehr.'); return; }
+    await openNotebook(page.notebookId);
+    const i = S.pages.findIndex(p => p.id === c.src);
+    if (i < 0) { toast('Die Seite dieser Karte ist nicht mehr im Heft.'); return; }
+    await gotoPage(i);
+    const b = c.srcBox;
+    if (b) {   // Fundstelle in die Mitte holen und kurz aufleuchten lassen
+      const bw = b[2] - b[0], bh = b[3] - b[1];
+      const s = clamp(Math.min((W * 0.75) / Math.max(bw, 1), (H * 0.6) / Math.max(bh, 1)), S.v.s, S.v.s * 2.5);
+      S.v = { s, x: W / 2 - (b[0] + bw / 2) * s, y: H / 2 - (b[1] + bh / 2) * s }; clampView(); S.fitMode = null;
+      flash = { box: b, until: performance.now() + 2200 };
+      renderBg(); requestLive();
+    }
+  } catch (e) { console.error(e); toast('Die Quelle ließ sich nicht öffnen: ' + (e.message || e)); }
 }
 
 /* Abfrage */
@@ -3111,6 +3147,7 @@ async function renderStudy() {
   $('studyHint').textContent = ST.flipped ? (ST.cram ? 'Üben verändert die Fächer nicht.' : '') : 'Tippe auf die Karte, um die Antwort zu sehen.';
   $('studyActions').hidden = !ST.flipped;
   $('studySrc').hidden = !c.src;
+  $('studyDel').hidden = false;
   const txt = $('kText'), cv = $('kCanvas');
   if (face && face.text != null) { txt.hidden = false; txt.textContent = face.text; cv.hidden = true; }
   else { txt.hidden = true; cv.hidden = false; await drawFace(cv, face); }
@@ -3171,6 +3208,12 @@ $('kWrong').onclick = () => answer(false);
 $('kRight').onclick = () => answer(true);
 $('studyBack').onclick = exitStudy;
 $('doneBack').onclick = exitStudy;
+$('studyDel').onclick = async () => {
+  const c = ST && ST.q[ST.i]; if (!c) return;
+  if (!(await deleteCard(c))) return;
+  ST.q = ST.q.filter((x, j) => j < ST.i || x.id !== c.id);   // auch spätere Wiederholungen dieser Karte entfernen
+  ST.flipped = false; renderStudy();
+};
 $('studySrc').onclick = () => { const c = ST && ST.q[ST.i]; if (c) { ST = null; openSource(c); } };
 $('decksBtn').onclick = showDecks;
 $('decksBack').onclick = () => showLibrary();
