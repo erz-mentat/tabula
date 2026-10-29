@@ -1077,6 +1077,15 @@ function finishInk() {
 
 /* Lasso: Striche und Bilder auswählen, verschieben, skalieren, kopieren, umfärben, löschen */
 const alive = s => s && !s.deleted;
+/* Tippen auf Knöpfe über der Zeichenfläche: auf dem iPad schon beim Loslassen auslösen, nicht erst beim Klick,
+   den Safari dort manchmal verwirft; der nachfolgende Klick wird dann ignoriert */
+function onTap(el, fn) {
+  let down = null, fired = 0;
+  el.addEventListener('pointerdown', e => { down = e.pointerId; }, { passive: true });
+  el.addEventListener('pointerup', e => { if (down !== e.pointerId) return; down = null; fired = performance.now(); e.preventDefault(); fn(e); });
+  el.addEventListener('pointercancel', () => { down = null; });
+  el.addEventListener('click', e => { if (performance.now() - fired < 700) return; fn(e); });
+}
 function itemBox(s) {
   if (s.tool === 'image') return [s.x, s.y, s.x + s.w, s.y + s.h];
   const p = s.pts, m = (s.size || 4) / 2;
@@ -1219,25 +1228,29 @@ const selBar = $('selBar');
 TOOLS.pen.colors.forEach((c, i) => {
   const b = document.createElement('button');
   b.type = 'button'; b.style.setProperty('--c', c); b.title = TOOLS.pen.names[i]; b.setAttribute('aria-label', 'Umfärben: ' + TOOLS.pen.names[i]);
-  b.onclick = () => recolorSel(c);
+  onTap(b, () => recolorSel(c));
   $('selColors').appendChild(b);
 });
-$('selCopy').onclick = copySel;
-$('selDelete').onclick = deleteSel;
-$('selCard').onclick = () => cardFromSelection();
+onTap($('selCopy'), copySel);
+onTap($('selDelete'), deleteSel);
+onTap($('selCard'), () => cardFromSelection());
 for (const t of ['pointerdown', 'touchstart']) selBar.addEventListener(t, e => e.stopPropagation(), { passive: true });
 function updateSelBar(box) {
   if (!box || S.view !== 'editor') { if (!selBar.hidden) selBar.hidden = true; return; }
   const items = selItems();
-  $('selColors').hidden = !items.some(s => s.tool === 'pen');
-  $('selCard').textContent = cardDraft ? 'Als Rückseite' : 'Karte';
-  selBar.hidden = false;
+  if (selBar.hidden) selBar.hidden = false;
+  const noPen = !items.some(s => s.tool === 'pen');
+  if ($('selColors').hidden !== noPen) $('selColors').hidden = noPen;
+  const lbl = cardDraft ? 'Als Rückseite' : 'Karte';
+  if ($('selCard').textContent !== lbl) $('selCard').textContent = lbl;   // nur bei Änderung, sonst verliert Safari den Tipp
   const { s, x, y } = S.v, bw = selBar.offsetWidth, bh = selBar.offsetHeight;
   const sx0 = x + box[0] * s, sx1 = x + box[2] * s, sy0 = y + box[1] * s, sy1 = y + box[3] * s;
   let top = sy0 - bh - 14;
   if (top < 8) top = Math.min(H - bh - 8, sy1 + 18);
   const left = clamp((sx0 + sx1) / 2 - bw / 2, 8, Math.max(8, W - bw - 8));
-  selBar.style.left = Math.round(left) + 'px'; selBar.style.top = Math.round(top) + 'px';
+  const L = Math.round(left) + 'px', T = Math.round(top) + 'px';
+  if (selBar.style.left !== L) selBar.style.left = L;
+  if (selBar.style.top !== T) selBar.style.top = T;
 }
 
 /* Radierer: ganze Striche, die der Kreis berührt */
@@ -2954,11 +2967,11 @@ async function finishCard(back) {
   toast(`Karte angelegt · ${n} ${n === 1 ? 'Karte' : 'Karten'} in diesem Heft`);
   updateStudyLabel();
 }
-$('cardCancelBtn').onclick = () => { cardDraft = null; showCardBar(); toast('Karte verworfen'); };
-$('cardTypeBtn').onclick = async () => {
+onTap($('cardCancelBtn'), () => { cardDraft = null; showCardBar(); toast('Karte verworfen'); });
+onTap($('cardTypeBtn'), async () => {
   const r = await dialog({ title: 'Antwort tippen', fields: [{ id: 'a', label: 'Rückseite', multiline: true }], confirm: 'Karte anlegen' });
   if (r && r.fields.a) await finishCard({ text: r.fields.a });
-};
+});
 async function newTextCard(nbId, sectionId, src) {
   const r = await dialog({ title: 'Textkarte', fields: [{ id: 'q', label: 'Vorderseite (Frage)', multiline: true }, { id: 'a', label: 'Rückseite (Antwort)', multiline: true }], confirm: 'Anlegen' });
   if (!r || !r.fields.q || !r.fields.a) return false;
