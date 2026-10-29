@@ -226,6 +226,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .boxcol .l{font-size:.68rem;color:var(--muted);letter-spacing:.04em}
 .deck-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
 .deck-actions .btn{height:38px;padding:0 13px;font-size:.88rem}
+.deck-actions .icon-btn{width:38px;height:38px;border:1px solid var(--line);border-radius:10px}
 @media (max-width:640px){.deck{grid-template-columns:1fr}.deck-actions{justify-content:flex-start}}
 /* Abfrage */
 #study{display:flex;flex-direction:column;background:var(--desk);position:relative}
@@ -3052,6 +3053,9 @@ async function showDecks() {
     mk('Üben', '', () => startStudy([nb.id], true, 'decks'));
     mk('Neue Karte', '', async () => { if (await newTextCard(nb.id)) showDecks(); });
     mk('Karten', '', () => cardList(nb));
+    const more = document.createElement('button'); more.type = 'button'; more.className = 'icon-btn deck-more';
+    more.setAttribute('aria-label', `Optionen für ${nb.title}`); more.innerHTML = '<svg class="i"><use href="#i-more"/></svg>';
+    more.onclick = () => deckMenu(nb, cs); acts.appendChild(more);
     el.append(info, acts);
     list.appendChild(el);
   }
@@ -3077,6 +3081,25 @@ async function cardList(nb) {
   else if (a === 'src') openSource(c);
   else if (a === 'reset') { const now = Date.now(); Object.assign(c, { box: 1, due: 0, ru: now, u: now }); await save('cards', c); showDecks(); }
   else if (a === 'del') { if (await deleteCard(c)) showDecks(); }
+}
+async function deckMenu(nb, cs) {
+  const acts = [{ id: 'list', label: 'Karten anzeigen' }, { id: 'nb', label: 'Zum Heft' }];
+  if (cs.some(c => (c.box || 1) > 1)) acts.push({ id: 'reset', label: 'Alle Karten zurück in Fach 1' });
+  acts.push({ id: 'del', label: cs.length === 1 ? 'Karte löschen' : `Alle ${cs.length} Karten löschen`, danger: true });
+  const a = await dialog({ title: nb.title, actions: acts });
+  if (a === 'list') cardList(nb);
+  else if (a === 'nb') openNotebook(nb.id);
+  else if (a === 'reset') {
+    const now = Date.now();
+    for (const c of cs) if ((c.box || 1) > 1) { Object.assign(c, { box: 1, due: 0, ru: now, u: now }); await save('cards', c); }
+    toast('Alle Karten liegen wieder in Fach 1'); updateDueBadge(); showDecks();
+  } else if (a === 'del') {
+    const ok = await dialog({ title: `Alle Karten von „${nb.title}“ löschen?`, text: `${cs.length} ${cs.length === 1 ? 'Karte verschwindet' : 'Karten verschwinden'} aus dem Karteikasten. Deine Notizen im Heft bleiben unverändert.`, confirm: 'Alle löschen', danger: true });
+    if (!ok) return;
+    const now = Date.now();
+    for (const c of cs) { Object.assign(c, { deleted: 1, cu: now, u: now }); await save('cards', c); }
+    toast(cs.length === 1 ? 'Karte gelöscht' : `${cs.length} Karten gelöscht`); updateDueBadge(); showDecks();
+  }
 }
 async function deleteCard(c) {
   const ok = await dialog({ title: 'Karte löschen?', text: 'Die Karte verschwindet aus dem Karteikasten. Deine Notizen auf der Seite bleiben unverändert.', confirm: 'Löschen', danger: true });
