@@ -349,8 +349,8 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
     <header class="study-head">
       <button class="icon-btn" id="studyBack" type="button" aria-label="Abfrage beenden"><svg class="i"><use href="#i-back"/></svg></button>
       <div class="study-title"><b id="studyTitle"></b><span id="studyMeta"></span></div>
-      <button class="btn" id="studyDel" type="button">Löschen</button>
       <button class="btn" id="studySrc" type="button">Zur Quelle</button>
+      <button class="icon-btn" id="studyMore" type="button" aria-label="Optionen für diese Karte" aria-haspopup="dialog"><svg class="i"><use href="#i-more"/></svg></button>
     </header>
     <div class="study-body" id="studyBody">
       <div class="study-progress"><i id="studyBar"></i></div>
@@ -3147,7 +3147,6 @@ async function renderStudy() {
   $('studyHint').textContent = ST.flipped ? (ST.cram ? 'Üben verändert die Fächer nicht.' : '') : 'Tippe auf die Karte, um die Antwort zu sehen.';
   $('studyActions').hidden = !ST.flipped;
   $('studySrc').hidden = !c.src;
-  $('studyDel').hidden = false;
   const txt = $('kText'), cv = $('kCanvas');
   if (face && face.text != null) { txt.hidden = false; txt.textContent = face.text; cv.hidden = true; }
   else { txt.hidden = true; cv.hidden = false; await drawFace(cv, face); }
@@ -3208,11 +3207,23 @@ $('kWrong').onclick = () => answer(false);
 $('kRight').onclick = () => answer(true);
 $('studyBack').onclick = exitStudy;
 $('doneBack').onclick = exitStudy;
-$('studyDel').onclick = async () => {
+$('studyMore').onclick = async () => {
   const c = ST && ST.q[ST.i]; if (!c) return;
-  if (!(await deleteCard(c))) return;
-  ST.q = ST.q.filter((x, j) => j < ST.i || x.id !== c.id);   // auch spätere Wiederholungen dieser Karte entfernen
-  ST.flipped = false; renderStudy();
+  const acts = [];
+  if (c.src) acts.push({ id: 'src', label: 'Zur Quelle' });
+  if (!ST.cram && (c.box || 1) > 1) acts.push({ id: 'reset', label: 'Zurück in Fach 1' });
+  acts.push({ id: 'del', label: 'Karte löschen', danger: true });
+  const a = await dialog({ title: `Karte · Fach ${c.box || 1}`, actions: acts });
+  if (!ST) return;
+  if (a === 'src') { ST = null; openSource(c); }
+  else if (a === 'reset') {
+    const now = Date.now(); Object.assign(c, { box: 1, due: 0, ru: now, u: Math.max(c.cu || 0, now) }); await save('cards', c);
+    toast('Karte liegt wieder in Fach 1'); renderStudy();
+  } else if (a === 'del') {
+    if (!(await deleteCard(c))) return;
+    ST.q = ST.q.filter((x, j) => j < ST.i || x.id !== c.id);   // auch spätere Wiederholungen dieser Karte entfernen
+    ST.flipped = false; renderStudy();
+  }
 };
 $('studySrc').onclick = () => { const c = ST && ST.q[ST.i]; if (c) { ST = null; openSource(c); } };
 $('decksBtn').onclick = showDecks;
