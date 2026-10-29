@@ -3123,7 +3123,9 @@ async function startStudy(nbIds, cram, back, onlyIds) {
   renderStudy();
 }
 async function drawFace(cv, face) {
-  const r = cv.getBoundingClientRect(), dpr = Math.min(3, window.devicePixelRatio || 1);
+  // Layoutmaße statt getBoundingClientRect: die Karte kann gerade gedreht sein, dann wäre die gemessene Höhe fast null
+  const r = { width: cv.offsetWidth, height: cv.offsetHeight }, dpr = Math.min(3, window.devicePixelRatio || 1);
+  if (!r.width || !r.height) return;
   cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
   const ctx = cv.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
