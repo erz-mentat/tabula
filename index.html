@@ -1057,6 +1057,12 @@ function onMove(e) {
     e.preventDefault();
     const q = localXY(e);
     touches.set(e.pointerId, q);
+    if (fingerDrag && fingerDrag.id === e.pointerId && touches.size === 1 && Math.hypot(q[0] - fingerDrag.q[0], q[1] - fingerDrag.q[1]) > 10) {
+      const f = fingerDrag; fingerDrag = null; tapInfo = null;
+      sel = { ids: f.ids }; const box = selBox();
+      if (box) { beginDrag(e, f.x, f.y, f.mode, box); drag.finger = true; moveDrag(pageXY(e)); }
+      return;
+    }
     if (gesture) updateGesture();
     else if (tapInfo && tapInfo.id === e.pointerId && Math.hypot(q[0] - tapInfo.x, q[1] - tapInfo.y) > 14) tapInfo = null;
   }
@@ -1069,7 +1075,13 @@ function onUp(e) {
     return;
   }
   if (eraser && e.pointerId === eraser.id) { e.preventDefault(); finishErase(); return; }
-  if (drag && e.pointerId === drag.id) { e.preventDefault(); finishDrag(); return; }
+  if (drag && e.pointerId === drag.id) {
+    e.preventDefault(); touches.delete(e.pointerId);
+    const finger = drag.finger;
+    if (e.type === 'pointercancel' && finger) revertFingerDrag(); else finishDrag();
+    if (finger && S.tool !== 'select') { sel = null; requestLive(); }
+    return;
+  }
   if (lasso && e.pointerId === lasso.id) { e.preventDefault(); finishLasso(); return; }
   if (e.pointerType === 'touch') onTouchUp(e, e.type === 'pointercancel');
 }
@@ -1118,12 +1130,20 @@ function selBox() {
   const pad = 10 / S.v.s;
   return [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
 }
-function imageAt(x, y) {
+function imageAt(x, y, withBg) {
+  let bg = null;
   for (let i = S.strokes.length - 1; i >= 0; i--) {
     const s = S.strokes[i];
-    if (s.tool === 'image' && !s.deleted && !s.bg && x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) return s;
+    if (s.tool !== 'image' || s.deleted || !(x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h)) continue;
+    if (!s.bg) return s;
+    if (withBg && !bg) bg = s;
   }
-  return null;
+  return bg;
+}
+/* Ein PDF liegt als mehrere Streifen auf der Seite: die gehören zusammen und bewegen sich gemeinsam */
+function imageGroup(img) {
+  if (!img.bg) return [img.id];
+  return S.strokes.filter(s => alive(s) && s.tool === 'image' && s.bg && s.x === img.x && s.w === img.w).map(s => s.id);
 }
 function inPoly(x, y, p) {
   let inside = false;
@@ -1150,8 +1170,8 @@ function finishLasso() {
   let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
   for (let i = 0; i < p.length; i += 2) { bx0 = Math.min(bx0, p[i]); bx1 = Math.max(bx1, p[i]); by0 = Math.min(by0, p[i + 1]); by1 = Math.max(by1, p[i + 1]); }
   if ((bx1 - bx0) * S.v.s < 12 && (by1 - by0) * S.v.s < 12) {   // Tipp: Bild darunter wählen
-    const img = imageAt(p[0], p[1]);
-    sel = img ? { ids: [img.id] } : null;
+    const img = imageAt(p[0], p[1], true);
+    sel = img ? { ids: imageGroup(img) } : null;
     requestLive(); return;
   }
   const ids = [];
@@ -1305,14 +1325,29 @@ function finishErase() {
 }
 
 /* Finger: zwei Finger verschieben und zoomen, ein Finger tut nichts (Handballen) */
+/* Ein Finger zieht Bilder und eine bestehende Auswahl; zwei Finger bleiben Zoomen und Verschieben der Ansicht */
+let fingerDrag = null;
+function revertFingerDrag() {
+  if (!drag || !drag.finger) return;
+  drag.items.forEach((s, i) => { Object.assign(s, drag.orig[i]); S.cache.delete(s.id); });
+  drag = null; sel = null; requestBg(); requestLive();
+}
 function onTouchDown(e) {
   e.preventDefault();
-  if (ink || eraser || drag) return;
+  if (drag && drag.finger) revertFingerDrag();
+  if (ink || eraser || drag || lasso) return;
   const now = performance.now();
   const q = localXY(e);
   touches.set(e.pointerId, q);
   if (touches.size === 1) tapInfo = now - lastInkT > 400 ? { id: e.pointerId, x: q[0], y: q[1], t: now } : null;
   else tapInfo = null;
+  fingerDrag = null;
+  if (touches.size === 1 && now - lastInkT > 400) {
+    const [x, y] = pageXY(e), box = sel ? selBox() : null, r = 30 / S.v.s;
+    if (box && Math.hypot(x - box[2], y - box[3]) <= r) fingerDrag = { id: e.pointerId, q, x, y, ids: sel.ids, mode: 'scale' };
+    else if (box && x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3]) fingerDrag = { id: e.pointerId, q, x, y, ids: sel.ids, mode: 'move' };
+    else { const img = imageAt(x, y, true); if (img) fingerDrag = { id: e.pointerId, q, x, y, ids: imageGroup(img), mode: 'move' }; }
+  }
   if (touches.size === 2) {
     const [a, b] = [...touches.values()];
     gesture = { v0: { ...S.v }, c0: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], d0: Math.max(1, Math.hypot(a[0] - b[0], a[1] - b[1])), t0: now, active: false };
@@ -1343,6 +1378,7 @@ function abortGesture() {
 function onTouchUp(e, cancelled) {
   if (!touches.has(e.pointerId)) return;
   touches.delete(e.pointerId);
+  if (fingerDrag && fingerDrag.id === e.pointerId) fingerDrag = null;
   if (gesture && touches.size < 2) gesture = null;
   if (!cancelled && tapInfo && tapInfo.id === e.pointerId && touches.size === 0) {
     const now = performance.now();
@@ -1515,7 +1551,7 @@ async function insertImage(a) {
   setTool('select'); sel = { ids: [s.id] };
   await loadAssets([asset.id]);
   renderBg(); requestLive();
-  toast('Bild eingefügt. Ziehen verschiebt, der blaue Punkt skaliert, der rote löscht.');
+  toast('Bild eingefügt. Mit Finger oder Stift ziehen verschiebt es, der blaue Punkt skaliert, der rote löscht.');
 }
 
 const secOf = p => p && S.nb && (S.nb.sections || []).find(x => x.id === p.sectionId) || null;
