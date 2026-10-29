@@ -134,15 +134,6 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .action-list .menu-item.heading:disabled{opacity:1;cursor:default;color:var(--muted)}
 .action-list .menu-item.tool-row{border-style:dashed;color:var(--accent)}
 .menu-item.current{border-color:var(--accent);color:var(--accent)}
-.pick-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 6px}
-.pick-tools .btn{height:34px;padding:0 12px;font-size:.88rem}
-.pick-cover{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.9rem;color:var(--muted)}
-.pick-row{display:flex;align-items:center;gap:10px;min-height:42px;padding:0 10px;border-radius:9px;font-size:.94rem;cursor:pointer}
-.pick-row:hover{background:var(--accent-soft)}
-.pick-row.group{min-height:46px;padding-top:8px;font-family:var(--font-display);font-weight:600;font-size:1.02rem}
-.pick-row input{width:20px;height:20px;flex:none;accent-color:var(--accent);margin:0}
-.pick-row .page-row{min-width:0}
-.pick-cover input{width:18px;height:18px;accent-color:var(--accent);margin:0}
 @media (max-width:760px){.page-label{max-width:14ch}}
 #stage{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;background:var(--desk);
   touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
@@ -318,7 +309,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
     <button class="menu-item" id="sectionsBtn" type="button" role="menuitem"><svg class="i"><use href="#i-cover"/></svg>Themen und Seiten</button>
     <button class="menu-item" id="fitBtn" type="button" role="menuitem"><svg class="i"><use href="#i-fit"/></svg><span id="fitLabel">Ganze Seite zeigen</span></button>
     <button class="menu-item" id="pngBtn" type="button" role="menuitem"><svg class="i"><use href="#i-image"/></svg>Seite als Bild sichern</button>
-    <button class="menu-item" id="pdfExportBtn" type="button" role="menuitem"><svg class="i"><use href="#i-pdf"/></svg>Seiten als PDF sichern</button>
+    <button class="menu-item" id="pdfExportBtn" type="button" role="menuitem"><svg class="i"><use href="#i-pdf"/></svg>Notizbuch als PDF sichern</button>
     <button class="menu-item" id="backupMenuBtn" type="button" role="menuitem"><svg class="i"><use href="#i-save"/></svg>Backup sichern</button>
     <button class="menu-item danger" id="delPageBtn" type="button" role="menuitem"><svg class="i"><use href="#i-trash"/></svg>Seite löschen</button>
   </div>
@@ -734,7 +725,8 @@ function renderBg() {
   const vis = visibleRect();
   if (S.page.sheet) {   // PDF-Blatt: dünne Rahmen um die einzelnen Seiten
     ctx.strokeStyle = '#d5dbe6'; ctx.lineWidth = 1.5 / (S.v.s * DPR) * DPR;
-    for (const s of S.strokes) if (s.bg && !s.deleted) ctx.strokeRect(s.x, s.y, s.w, s.h);
+    if (S.page.frames) for (const [fx, fy, fw, fh] of S.page.frames) ctx.strokeRect(fx, fy, fw, fh);
+    else for (const s of S.strokes) if (s.bg && !s.deleted) ctx.strokeRect(s.x, s.y, s.w, s.h);
   }
   drawTemplate(ctx, S.page.template, S.v.s * DPR, PW, PH, vis);
   drawStrokes(ctx, S.strokes, vis);
@@ -1554,7 +1546,7 @@ document.addEventListener('keydown', e => {
 
 /* ================= Dialoge & Hinweise ================= */
 let dialogCancel = () => {};
-function dialog({ title, text, input, fields, covers, templates, actions, scroll, confirm, danger, cancel = 'Abbrechen', custom }) {
+function dialog({ title, text, input, fields, covers, templates, actions, scroll, confirm, danger, cancel = 'Abbrechen' }) {
   return new Promise(resolve => {
     const scrim = $('scrim'), form = $('dlg');
     form.textContent = '';
@@ -1620,7 +1612,6 @@ function dialog({ title, text, input, fields, covers, templates, actions, scroll
       l2.appendChild(g2); form.appendChild(l2);
     }
     const done = val => { scrim.hidden = true; form.onsubmit = null; dialogCancel = () => {}; resolve(val); };
-    const customGet = custom ? custom(form) : null;
     if (actions) {
       const list = document.createElement('div'); list.className = 'action-list' + (scroll ? ' scroll' : '');
       actions.forEach(a => {
@@ -1637,11 +1628,11 @@ function dialog({ title, text, input, fields, covers, templates, actions, scroll
     const c = document.createElement('button'); c.type = 'button'; c.className = 'btn'; c.textContent = cancel; c.onclick = () => done(null);
     row.appendChild(c);
     if (confirm) {
-      const ok = document.createElement('button'); ok.type = 'submit'; ok.className = 'btn ' + (danger ? 'danger' : 'primary'); ok.textContent = confirm; ok.id = 'dlgOk';
+      const ok = document.createElement('button'); ok.type = 'submit'; ok.className = 'btn ' + (danger ? 'danger' : 'primary'); ok.textContent = confirm;
       row.appendChild(ok);
     }
     form.appendChild(row);
-    form.onsubmit = ev => { ev.preventDefault(); done({ value: inp ? inp.value.trim() : null, template: tpl, format: fmt, cover: cov, coverImg: covImg, fields: Object.fromEntries(Object.entries(fieldEls).map(([k, el]) => [k, el.value.trim()])), custom: customGet ? customGet() : null }); };
+    form.onsubmit = ev => { ev.preventDefault(); done({ value: inp ? inp.value.trim() : null, template: tpl, format: fmt, cover: cov, coverImg: covImg, fields: Object.fromEntries(Object.entries(fieldEls).map(([k, el]) => [k, el.value.trim()])) }); };
     dialogCancel = () => done(null);
     scrim.hidden = false;
     setTimeout(() => { if (inp) { inp.focus(); inp.select(); } }, 30);
@@ -2062,97 +2053,14 @@ async function buildPdf(pages) {
   return new Blob(parts, { type: 'application/pdf' });
 }
 let pdfBusy = false;
-async function notebookPages(nb) {
-  flushMeta();
-  const all = await Store.getAll('pages', 'notebookId', nb.id), map = new Map(all.map(x => [x.id, x]));
-  return nb.pageIds.map(id => map.get(id)).filter(x => x && !x.deleted);
-}
-/* Auswahl: Seiten nach Themen gruppiert, ein Haken am Thema wählt alle seine Seiten */
 async function exportNotebookPdf(nb) {
   if (!nb || pdfBusy) return;
-  const pages = await notebookPages(nb);
-  if (!pages.length) { toast('Das Notizbuch hat noch keine Seiten.'); return; }
-  const secs = nb.sections || [], known = new Set(secs.map(x => x.id));
-  const groups = [];
-  const loose = pages.filter(p => !known.has(p.sectionId));
-  if (loose.length) groups.push({ id: null, title: secs.length ? 'Ohne Thema' : null, pages: loose });
-  for (const sec of secs) { const ps = pages.filter(p => p.sectionId === sec.id); if (ps.length) groups.push({ id: sec.id, title: sec.title, pages: ps }); }
-  const num = new Map(pages.map((p, i) => [p.id, i + 1]));
-  // Vorauswahl: das Thema der offenen Seite, sonst alles
-  const here = S.nb && S.nb.id === nb.id && S.page && known.has(S.page.sectionId) ? S.page.sectionId : undefined;
-  const chosen = new Set(pages.filter(p => here === undefined || p.sectionId === here).map(p => p.id));
-  let withCover = !!nb.cover && here === undefined;
-  const r = await dialog({
-    title: 'Als PDF sichern', text: 'Wähle die Seiten. Ein Haken an einem Thema nimmt alle seine Seiten mit.',
-    confirm: 'PDF sichern',
-    custom: form => {
-      const tools = document.createElement('div'); tools.className = 'pick-tools';
-      const allB = document.createElement('button'); allB.type = 'button'; allB.className = 'btn'; allB.textContent = 'Alle';
-      const noneB = document.createElement('button'); noneB.type = 'button'; noneB.className = 'btn'; noneB.textContent = 'Keine';
-      tools.append(allB, noneB);
-      let coverBox = null;
-      if (nb.cover) {
-        const l = document.createElement('label'); l.className = 'pick-cover';
-        coverBox = document.createElement('input'); coverBox.type = 'checkbox'; coverBox.checked = withCover;
-        coverBox.onchange = () => { withCover = coverBox.checked; };
-        l.append(coverBox, 'Deckblatt');
-        tools.appendChild(l);
-      }
-      form.appendChild(tools);
-      const list = document.createElement('div'); list.className = 'action-list scroll';
-      const boxes = [], heads = [];
-      const sync = () => {
-        for (const h of heads) {
-          const n = h.g.pages.filter(p => chosen.has(p.id)).length;
-          h.box.checked = n === h.g.pages.length; h.box.indeterminate = n > 0 && n < h.g.pages.length;
-        }
-        for (const b of boxes) b.box.checked = chosen.has(b.p.id);
-        const ok = $('dlgOk'), n = chosen.size;
-        if (ok) { ok.textContent = n ? `PDF sichern (${n} ${n === 1 ? 'Seite' : 'Seiten'})` : 'PDF sichern'; ok.disabled = !n; }
-      };
-      for (const g of groups) {
-        if (g.title) {
-          const l = document.createElement('label'); l.className = 'pick-row group';
-          const box = document.createElement('input'); box.type = 'checkbox';
-          const t = document.createElement('span'); t.textContent = g.title;
-          l.append(box, t); list.appendChild(l);
-          box.onchange = () => { g.pages.forEach(p => box.checked ? chosen.add(p.id) : chosen.delete(p.id)); sync(); };
-          heads.push({ g, box });
-        }
-        for (const p of g.pages) {
-          const l = document.createElement('label'); l.className = 'pick-row';
-          const box = document.createElement('input'); box.type = 'checkbox';
-          const row = document.createElement('span'); row.className = 'page-row';
-          row.innerHTML = '<span class="pr-t"></span><span class="pr-n"></span>';
-          row.querySelector('.pr-t').textContent = p.title || 'Ohne Namen';
-          row.querySelector('.pr-n').textContent = 'S. ' + num.get(p.id);
-          l.append(box, row); list.appendChild(l);
-          box.onchange = () => { box.checked ? chosen.add(p.id) : chosen.delete(p.id); sync(); };
-          boxes.push({ p, box });
-        }
-      }
-      allB.onclick = () => { pages.forEach(p => chosen.add(p.id)); sync(); };
-      noneB.onclick = () => { chosen.clear(); sync(); };
-      form.appendChild(list);
-      setTimeout(sync, 0);
-      return () => ({ ids: pages.filter(p => chosen.has(p.id)).map(p => p.id), cover: withCover });
-    }
-  });
-  if (!r || !r.custom || !r.custom.ids.length) return;
-  const sel = new Set(r.custom.ids), pick = pages.filter(p => sel.has(p.id));
-  // Dateiname: genau ein vollständiges Thema → Heft und Thema im Namen
-  const full = groups.filter(g => g.pages.every(p => sel.has(p.id)));
-  const name = pick.length === pages.length ? nb.title
-    : full.length === 1 && full[0].title && full[0].pages.length === pick.length ? `${nb.title} ${full[0].title}`
-    : `${nb.title} Auswahl`;
-  return writePdf(nb, pick, r.custom.cover, name);
-}
-async function writePdf(nb, pages, withCover, name) {
-  if (pdfBusy) return;
   pdfBusy = true;
   try {
-    const out = [];
-    if (withCover && nb.cover) {   // Deckblatt als erste Seite, A4
+    flushMeta();
+    const all = await Store.getAll('pages', 'notebookId', nb.id), map = new Map(all.map(x => [x.id, x]));
+    const pages = nb.pageIds.map(id => map.get(id)).filter(x => x && !x.deleted), out = [];
+    if (nb.cover) {   // Deckblatt als erste Seite, A4
       const cv = document.createElement('canvas'); await drawThumb(cv, nb);
       const big = document.createElement('canvas'); big.width = 1260; big.height = 1782;
       big.getContext('2d').drawImage(cv, 0, 0, big.width, big.height);
@@ -2168,7 +2076,7 @@ async function writePdf(nb, pages, withCover, name) {
     }
     const blob = await buildPdf(out);
     toast('PDF fertig');
-    await saveFile(blob, `${slug(name)}_${stamp()}.pdf`);
+    await saveFile(blob, `${slug(nb.title)}_${stamp()}.pdf`);
   } catch (e) { console.error(e); toast('Das PDF ließ sich nicht erstellen.'); }
   finally { pdfBusy = false; }
 }
@@ -2237,19 +2145,32 @@ function loadPdfJs() {
   });
   return pdfjsP;
 }
+/* Eine PDF-Seite in Streifen rendern: Auflösung richtet sich nach der Breite (gut 200 dpi bei A4),
+   lange OneNote-Seiten werden in Streifen zu höchstens 2.000 Pixel Höhe zerlegt */
+const PDF_PX_PER_UNIT = 0.85, PDF_MAX_W = 2400, PDF_STRIP = 2000;
 async function renderPdfPage(doc, i) {
   const pg = await doc.getPage(i);
   const v1 = pg.getViewport({ scale: 1 });
-  const vp = pg.getViewport({ scale: Math.min(3, 2000 / Math.max(v1.width, v1.height)) });
-  const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
-  const ctx = c.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
-  await pg.render({ canvasContext: ctx, viewport: vp }).promise;
-  const now = Date.now();
-  const asset = { id: uid(), data: c.toDataURL('image/jpeg', 0.85), w: c.width, h: c.height, t: now, u: now };
-  c.width = c.height = 0; try { pg.cleanup(); } catch (e) {}
-  await save('assets', asset);
-  return { asset, w: Math.round(v1.width * 254 / 72), h: Math.round(v1.height * 254 / 72) };
+  const wU = Math.round(v1.width * 254 / 72), hU = Math.round(v1.height * 254 / 72);
+  const scale = Math.min(PDF_PX_PER_UNIT * 254 / 72, PDF_MAX_W / v1.width);
+  const vp = pg.getViewport({ scale });
+  const W = Math.round(vp.width), H = Math.round(vp.height), uPerPx = hU / H, tiles = [];
+  for (let y0 = 0; y0 < H; y0 += PDF_STRIP) {
+    const h = Math.min(PDF_STRIP, H - y0);
+    const c = document.createElement('canvas'); c.width = W; c.height = h;
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, h);
+    await pg.render({ canvasContext: ctx, viewport: vp, transform: [1, 0, 0, 1, 0, -y0] }).promise;
+    const now = Date.now();
+    const asset = { id: uid(), data: c.toDataURL('image/jpeg', 0.88), w: W, h, t: now, u: now };
+    c.width = c.height = 0;
+    await save('assets', asset);
+    tiles.push({ asset, y: r1(y0 * uPerPx), h: r1(h * uPerPx) });
+  }
+  try { pg.cleanup(); } catch (e) {}
+  return { tiles, w: wU, h: hU };
 }
+const tileStrokes = (r, pageId, x, y, t) => r.tiles.map((tl, k) => ({ id: uid(), pageId, tool: 'image', bg: 1, asset: tl.asset.id,
+  x, y: r1(y + tl.y), w: r.w, h: tl.h, pts: [], deleted: 0, t: t + k, u: t + k }));
 async function openPdf(lib, file) {
   try { return await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise; }
   catch (e) { toast(`„${file.name}“ lässt sich nicht öffnen.`); return null; }
@@ -2262,8 +2183,7 @@ async function pdfToPages(lib, file, notebookId) {
     toast(`${name}: Seite ${i} von ${doc.numPages}`);
     const r = await renderPdfPage(doc, i), t = now + i;
     const page = { id: uid(), notebookId, template: 'blank', format: 'custom', w: r.w, h: r.h, t, u: t, title: doc.numPages > 1 ? `${name} ${i}` : name };
-    const img = { id: uid(), pageId: page.id, tool: 'image', bg: 1, asset: r.asset.id, x: 0, y: 0, w: r.w, h: r.h, pts: [], deleted: 0, t, u: t };
-    await save('pages', page); await save('strokes', img);
+    await save('pages', page); await save('strokes', tileStrokes(r, page.id, 0, 0, t));
     pages.push(page);
   }
   try { doc.destroy(); } catch (e) {}
@@ -2286,9 +2206,11 @@ async function pdfToSheets(lib, file, notebookId, sectionId) {
     const now = Date.now() + c;
     const page = { id: uid(), notebookId, sectionId: sectionId || null, template: 'blank', format: 'custom', w, h, t: now, u: now,
                    title: chunks > 1 ? `${name} (${c + 1}/${chunks})` : name, sheet: 1 };
-    let y = SHEET_PAD; const imgs = [];
+    let y = SHEET_PAD; const imgs = []; page.frames = [];
     rendered.forEach((r, k) => {
-      imgs.push({ id: uid(), pageId: page.id, tool: 'image', bg: 1, asset: r.asset.id, x: Math.round((w - r.w) / 2), y, w: r.w, h: r.h, pts: [], deleted: 0, t: now + k, u: now + k });
+      const x = Math.round((w - r.w) / 2);
+      imgs.push(...tileStrokes(r, page.id, x, y, now + k * 100));
+      page.frames.push([x, y, r.w, r.h]);
       y += r.h + SHEET_GAP;
     });
     await save('pages', page); await save('strokes', imgs);
