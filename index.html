@@ -30,6 +30,10 @@
   --accent-fg:#ffffff;
   --danger:#b4322c;
   --danger-fg:#ffffff;
+  --good:#1d7a48;
+  --good-fg:#ffffff;
+  --kred:#de5f5a;              /* Kopflinie der Karteikarte */
+  --kink:#1b1f27;              /* Schrift auf Papier, in beiden Themen gleich */
   --shadow:rgba(24,34,64,.16);
   --scrim:rgba(18,24,40,.36);
   --ring:rgba(20,28,48,.16);
@@ -43,14 +47,14 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --desk:#13171f; --chrome:#1c212b; --line:#2e3544; --fg:#e6e9f1; --muted:#99a1b5;
-    --accent:#8fa5ff; --accent-soft:#252e4d; --accent-fg:#0d1330; --danger:#ff8a80; --danger-fg:#2a0b08;
+    --accent:#8fa5ff; --accent-soft:#252e4d; --accent-fg:#0d1330; --danger:#ff8a80; --danger-fg:#2a0b08; --good:#6fd39a; --good-fg:#0b2617;
     --shadow:rgba(0,0,0,.55); --scrim:rgba(0,0,0,.55); --ring:rgba(255,255,255,.38);
     color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --desk:#13171f; --chrome:#1c212b; --line:#2e3544; --fg:#e6e9f1; --muted:#99a1b5;
-  --accent:#8fa5ff; --accent-soft:#252e4d; --accent-fg:#0d1330; --danger:#ff8a80; --danger-fg:#2a0b08;
+  --accent:#8fa5ff; --accent-soft:#252e4d; --accent-fg:#0d1330; --danger:#ff8a80; --danger-fg:#2a0b08; --good:#6fd39a; --good-fg:#0b2617;
   --shadow:rgba(0,0,0,.55); --scrim:rgba(0,0,0,.55); --ring:rgba(255,255,255,.38);
   color-scheme:dark;
 }
@@ -200,6 +204,71 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .cover-opt[aria-pressed="true"] .cv{box-shadow:inset 4px 0 0 var(--spine),0 0 0 2px var(--accent)}
 .dialog{max-height:calc(100% - 8px);overflow-y:auto}
 @media (max-width:480px){.cover-grid{grid-template-columns:repeat(4,1fr)}}
+/* Karteikasten */
+.badge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;margin-left:2px;border-radius:999px;background:var(--danger);color:var(--danger-fg);font-size:.74rem;font-weight:600;font-variant-numeric:tabular-nums}
+#decks{overflow-y:auto;-webkit-overflow-scrolling:touch;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 56px}
+.decks-inner{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.decks-head{display:flex;align-items:flex-start;flex-wrap:wrap;gap:10px 14px}
+.decks-titles{flex:1 1 320px;min-width:0}
+.decks-head h1{margin:2px 0 0;font-family:var(--font-display);font-weight:600;font-size:clamp(1.9rem,4.4vw,2.6rem);line-height:1.05;text-wrap:balance}
+.decks-sub{margin:8px 0 0;color:var(--muted);max-width:64ch;line-height:1.5;font-size:.92rem}
+.deck-list{display:flex;flex-direction:column;gap:12px}
+.deck{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px 22px;padding:16px 18px;background:var(--chrome);border:1px solid var(--line);border-radius:14px}
+.deck-info{min-width:0}
+.deck h2{margin:0;font-family:var(--font-display);font-weight:500;font-size:1.22rem;line-height:1.2;overflow-wrap:anywhere}
+.deck-meta{margin:3px 0 0;color:var(--muted);font-size:.85rem;font-variant-numeric:tabular-nums}
+.deck-meta b{color:var(--danger);font-weight:600}
+.boxes{display:flex;gap:6px;margin-top:12px}
+.boxcol{display:flex;flex-direction:column;align-items:center;gap:3px;width:42px}
+.boxcol .n{font-size:.78rem;font-weight:600;font-variant-numeric:tabular-nums}
+.boxbar{width:100%;height:30px;border-radius:5px;background:var(--desk);display:flex;align-items:flex-end;overflow:hidden}
+.boxbar i{display:block;width:100%;background:var(--accent);opacity:.8;border-radius:3px 3px 0 0}
+.boxcol .l{font-size:.68rem;color:var(--muted);letter-spacing:.04em}
+.deck-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.deck-actions .btn{height:38px;padding:0 13px;font-size:.88rem}
+@media (max-width:640px){.deck{grid-template-columns:1fr}.deck-actions{justify-content:flex-start}}
+/* Abfrage */
+#study{display:flex;flex-direction:column;background:var(--desk);position:relative}
+.study-head{display:flex;align-items:center;gap:10px;background:var(--chrome);border-bottom:1px solid var(--line);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:6px}
+.study-title{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.study-title b{font-family:var(--font-display);font-weight:500;font-size:1.08rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.study-title span{font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.study-head .btn{height:38px;font-size:.88rem}
+.study-body{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px}
+.study-progress{width:min(780px,100%);height:4px;border-radius:2px;background:var(--line);overflow:hidden;flex:none}
+.study-progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s ease}
+.kcard{position:relative;flex:none;display:block;width:min(780px,100%,calc((100dvh - 300px) * 148 / 105));max-width:100%;aspect-ratio:148/105;padding:0;
+  border-radius:6px;background-color:var(--paper);color:var(--kink);text-align:center;
+  background-image:linear-gradient(var(--kred),var(--kred)),linear-gradient(var(--paper),var(--paper)),repeating-linear-gradient(to bottom,transparent 0,transparent calc(8.6% - 1px),var(--rule) calc(8.6% - 1px),var(--rule) 8.6%);
+  background-size:100% 2px,100% 15.5%,100% 100%;background-position:0 15.5%,0 0,0 0;background-repeat:no-repeat,no-repeat,no-repeat;
+  box-shadow:0 1px 2px var(--shadow),0 14px 34px var(--shadow);transition:transform .22s ease}
+.kcard.turn{transform:rotateX(90deg)}
+.kcard-side,.kcard-box{position:absolute;top:4.5%;font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8a93a6}
+.kcard-side{left:4%}.kcard-box{right:4%}
+.kcard.back .kcard-side{color:var(--kred)}
+.kcard-ink{position:absolute;left:4%;right:4%;top:19%;bottom:5%;width:92%;height:76%}
+.kcard-text{position:absolute;left:6%;right:6%;top:19%;bottom:6%;display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);font-weight:500;font-size:clamp(1.15rem,2.9vw,1.9rem);line-height:1.35;white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto}
+.study-hint{margin:0;color:var(--muted);font-size:.88rem;min-height:1.3em}
+.study-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.btn.big{height:54px;padding:0 28px;font-size:1rem;min-width:170px}
+.btn.wrong{border-color:var(--danger);color:var(--danger)}
+.btn.right{background:var(--good);border-color:var(--good);color:var(--good-fg)}
+.study-done{position:absolute;inset:60px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px;background:var(--desk)}
+.study-done h2{margin:0;font-family:var(--font-display);font-weight:600;font-size:2rem}
+.study-done p{margin:0;color:var(--muted);max-width:46ch;line-height:1.5}
+/* Karte anlegen im Heft */
+.cardbar{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:6px;padding:6px 6px 6px 14px;
+  background:var(--chrome);border:1px solid var(--accent);border-radius:12px;box-shadow:0 8px 24px var(--shadow);width:max-content;max-width:calc(100% - 32px);font-size:.86rem}
+.cardbar span{min-width:0}
+.cardbar button{height:34px;padding:0 11px;border-radius:9px;font-weight:500;white-space:nowrap}
+.cardbar button:hover{background:var(--accent-soft)}
+.selbar button.accent{color:var(--accent)}
+.field textarea{min-height:96px;border-radius:11px;border:1px solid var(--line);background:var(--desk);color:var(--fg);font:inherit;font-size:16px;padding:10px 12px;resize:vertical;-webkit-user-select:text;user-select:text;width:100%}
+.field textarea:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 
@@ -222,6 +291,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
     <symbol id="i-select" viewBox="0 0 24 24"><path d="M12 4.5c4.7 0 8 2.3 8 5.3s-3.3 5.2-8 5.2c-1.3 0-2.6-.2-3.7-.5" stroke-dasharray="2.6 2.4"/><path d="M8.3 14.5C5.6 13.6 4 11.9 4 9.8 4 6.8 7.3 4.5 12 4.5"/><path d="M8.3 14.5c-.8 1.6-.4 3.4 1.2 4.5"/><circle cx="9.6" cy="19.2" r="1.1"/></symbol>
     <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5H7a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z"/><path d="M14 3.5V8h4"/><path d="M9 13h6M9 16.5h4"/></symbol>
     <symbol id="i-cover" viewBox="0 0 24 24"><path d="M6 3.5h11.5a.5.5 0 0 1 .5.5v16a.5.5 0 0 1-.5.5H6a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z"/><path d="M8.5 3.5v17"/><path d="M11 8h4.5"/></symbol>
+    <symbol id="i-cards" viewBox="0 0 24 24"><rect x="3.5" y="7" width="13" height="9.5" rx="1.2"/><path d="M7.5 7V5.2c0-.7.5-1.2 1.2-1.2h10.6c.7 0 1.2.5 1.2 1.2v8.1c0 .7-.5 1.2-1.2 1.2H16.5"/><path d="M3.5 9.8h13"/></symbol>
     <symbol id="i-load" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 19.5h14"/></symbol>
   </defs>
 </svg>
@@ -236,6 +306,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
         </div>
         <div class="lib-actions">
           <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
+          <button class="btn" id="decksBtn" type="button"><svg class="i"><use href="#i-cards"/></svg>Karteikasten<span class="badge" id="dueBadge" hidden></span></button>
           <button class="btn" id="exportBtn" type="button"><svg class="i"><use href="#i-save"/></svg>Backup sichern</button>
           <button class="btn" id="pdfBtn" type="button"><svg class="i"><use href="#i-pdf"/></svg>PDF importieren</button>
           <button class="btn" id="importBtn" type="button"><svg class="i"><use href="#i-load"/></svg>Backup laden</button>
@@ -252,6 +323,51 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
         <p>Lege ein Notizbuch an und wähle das Papier. Geschrieben wird mit dem Apple Pencil, navigiert mit zwei Fingern.</p>
         <button class="btn primary" id="emptyNewBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Erstes Notizbuch anlegen</button>
       </div>
+    </div>
+  </section>
+
+  <section id="decks" class="view" aria-label="Karteikasten" hidden>
+    <div class="decks-inner">
+      <header class="decks-head">
+        <button class="icon-btn" id="decksBack" type="button" aria-label="Zur Bibliothek"><svg class="i"><use href="#i-back"/></svg></button>
+        <div class="decks-titles">
+          <h1>Karteikasten</h1>
+          <p class="decks-sub">Leitner-System mit fünf Fächern: Fach 1 jeden Tag, dann nach 3, 7, 14 und 30 Tagen. Gewusst schiebt eine Karte ein Fach weiter, nicht gewusst zurück in Fach 1.</p>
+        </div>
+        <button class="btn primary" id="studyAllBtn" type="button">Alle fälligen lernen</button>
+      </header>
+      <div class="deck-list" id="deckList"></div>
+      <div class="empty" id="decksEmpty" hidden>
+        <h2>Noch keine Karten</h2>
+        <p>Öffne ein Heft, kreise mit dem Lasso eine Frage ein und tippe auf „Karte“. Danach kreist du die Antwort ein oder tippst sie. Textkarten legst du hier über „Neue Karte“ an, sobald ein Heft Karten hat, oder direkt im Heft.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="study" class="view" aria-label="Abfrage" hidden>
+    <header class="study-head">
+      <button class="icon-btn" id="studyBack" type="button" aria-label="Abfrage beenden"><svg class="i"><use href="#i-back"/></svg></button>
+      <div class="study-title"><b id="studyTitle"></b><span id="studyMeta"></span></div>
+      <button class="btn" id="studySrc" type="button">Zur Quelle</button>
+    </header>
+    <div class="study-body" id="studyBody">
+      <div class="study-progress"><i id="studyBar"></i></div>
+      <button class="kcard" id="kcard" type="button" aria-label="Karte umdrehen">
+        <span class="kcard-side" id="kSide">Frage</span>
+        <span class="kcard-box" id="kBox">Fach 1</span>
+        <canvas class="kcard-ink" id="kCanvas"></canvas>
+        <span class="kcard-text" id="kText"></span>
+      </button>
+      <p class="study-hint" id="studyHint">Tippe auf die Karte, um die Antwort zu sehen.</p>
+      <div class="study-actions" id="studyActions" hidden>
+        <button class="btn big wrong" id="kWrong" type="button">Nicht gewusst</button>
+        <button class="btn big right" id="kRight" type="button">Gewusst</button>
+      </div>
+    </div>
+    <div class="study-done" id="studyDone" hidden>
+      <h2 id="doneTitle">Geschafft</h2>
+      <p id="doneText"></p>
+      <button class="btn primary" id="doneBack" type="button">Zurück</button>
     </div>
   </section>
 
@@ -288,7 +404,14 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
     <div id="stage">
       <canvas id="bgCanvas"></canvas>
       <canvas id="liveCanvas"></canvas>
+      <div class="cardbar" id="cardBar" hidden role="status">
+        <span id="cardBarText">Vorderseite gemerkt. Kreise jetzt die Antwort ein und tippe auf „Als Rückseite“.</span>
+        <button type="button" id="cardTypeBtn">Antwort tippen</button>
+        <button type="button" id="cardCancelBtn">Abbrechen</button>
+      </div>
       <div class="selbar" id="selBar" hidden role="toolbar" aria-label="Auswahl">
+        <button type="button" id="selCard" class="accent">Karte</button>
+        <span class="selbar-sep"></span>
         <button type="button" id="selCopy">Kopieren</button>
         <span class="selbar-sep"></span>
         <span class="selbar-colors" id="selColors"></span>
@@ -309,6 +432,8 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
     <button class="menu-item" id="sectionsBtn" type="button" role="menuitem"><svg class="i"><use href="#i-cover"/></svg>Themen und Seiten</button>
     <button class="menu-item" id="fitBtn" type="button" role="menuitem"><svg class="i"><use href="#i-fit"/></svg><span id="fitLabel">Ganze Seite zeigen</span></button>
     <button class="menu-item" id="pngBtn" type="button" role="menuitem"><svg class="i"><use href="#i-image"/></svg>Seite als Bild sichern</button>
+    <button class="menu-item" id="studyNbBtn" type="button" role="menuitem"><svg class="i"><use href="#i-cards"/></svg><span id="studyNbLabel">Karten dieses Hefts lernen</span></button>
+    <button class="menu-item" id="textCardBtn" type="button" role="menuitem"><svg class="i"><use href="#i-plus"/></svg>Textkarte anlegen</button>
     <button class="menu-item" id="pdfExportBtn" type="button" role="menuitem"><svg class="i"><use href="#i-pdf"/></svg>Notizbuch als PDF sichern</button>
     <button class="menu-item" id="backupMenuBtn" type="button" role="menuitem"><svg class="i"><use href="#i-save"/></svg>Backup sichern</button>
     <button class="menu-item danger" id="delPageBtn" type="button" role="menuitem"><svg class="i"><use href="#i-trash"/></svg>Seite löschen</button>
@@ -395,7 +520,7 @@ const Store = (() => {
   function openDB() {
     return new Promise((res, rej) => {
       let r;
-      try { r = indexedDB.open('tabula', 4); } catch (e) { rej(e); return; }
+      try { r = indexedDB.open('tabula', 5); } catch (e) { rej(e); return; }
       r.onupgradeneeded = ev => {
         const d = r.result;
         if (!d.objectStoreNames.contains('notebooks')) d.createObjectStore('notebooks', { keyPath: 'id' });
@@ -406,6 +531,7 @@ const Store = (() => {
         else if (ev.oldVersion < 4) r.transaction.objectStore('snapshots').clear();   // alte Vollkopien, ersetzt durch Versionen pro Seite
         if (!d.objectStoreNames.contains('versions')) d.createObjectStore('versions', { keyPath: 'id' });
         if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('cards')) d.createObjectStore('cards', { keyPath: 'id' }).createIndex('notebookId', 'notebookId');
       };
       r.onsuccess = () => { const d = r.result; d.onversionchange = () => d.close(); res(d); };
       r.onerror = () => rej(r.error);
@@ -417,7 +543,7 @@ const Store = (() => {
       db = await Promise.race([openDB(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))]);
       return true;
     } catch (e) {
-      mem = { notebooks: new Map(), pages: new Map(), strokes: new Map(), assets: new Map(), snapshots: new Map(), versions: new Map(), meta: new Map() };
+      mem = { notebooks: new Map(), pages: new Map(), strokes: new Map(), assets: new Map(), snapshots: new Map(), versions: new Map(), meta: new Map(), cards: new Map() };
       return false;
     }
   }
@@ -477,7 +603,7 @@ const Store = (() => {
 })();
 
 function save(store, items) {
-  if (store === 'notebooks' || store === 'pages' || store === 'strokes' || store === 'assets') markChanged(store, items);
+  if (store === 'notebooks' || store === 'pages' || store === 'strokes' || store === 'assets' || store === 'cards') markChanged(store, items);
   return Store.put(store, items).catch(err => {
     console.error(err);
     toast('Speichern fehlgeschlagen. Sichere ein Backup, bevor du weiterschreibst.');
@@ -1098,11 +1224,13 @@ TOOLS.pen.colors.forEach((c, i) => {
 });
 $('selCopy').onclick = copySel;
 $('selDelete').onclick = deleteSel;
+$('selCard').onclick = () => cardFromSelection();
 for (const t of ['pointerdown', 'touchstart']) selBar.addEventListener(t, e => e.stopPropagation(), { passive: true });
 function updateSelBar(box) {
   if (!box || S.view !== 'editor') { if (!selBar.hidden) selBar.hidden = true; return; }
   const items = selItems();
   $('selColors').hidden = !items.some(s => s.tool === 'pen');
+  $('selCard').textContent = cardDraft ? 'Als Rückseite' : 'Karte';
   selBar.hidden = false;
   const { s, x, y } = S.v, bw = selBar.offsetWidth, bh = selBar.offsetHeight;
   const sx0 = x + box[0] * s, sx1 = x + box[2] * s, sy0 = y + box[1] * s, sy1 = y + box[3] * s;
@@ -1407,7 +1535,7 @@ FORMATS.forEach(f => {
   $('fmtGrid').appendChild(b);
 });
 function openMenu() {
-  markTemplate();
+  markTemplate(); updateStudyLabel();
   $('fitLabel').textContent = S.fitMode === 'width' ? 'Ganze Seite zeigen' : 'Seitenbreite zeigen';
   const r = $('menuBtn').getBoundingClientRect();
   menu.hidden = false;
@@ -1528,11 +1656,14 @@ async function sectionActions(id) {
 $('pngBtn').onclick = () => { closeMenu(); exportPagePNG(); };
 $('backupMenuBtn').onclick = () => { closeMenu(); exportBackup(); };
 $('pdfExportBtn').onclick = () => { closeMenu(); exportNotebookPdf(S.nb); };
+$('studyNbBtn').onclick = () => { closeMenu(); startStudy([S.nb.id], false, 'editor'); };
+$('textCardBtn').onclick = () => { closeMenu(); newTextCard(S.nb.id, S.page && S.page.sectionId, S.page && S.page.id); };
 $('delPageBtn').onclick = () => { closeMenu(); deletePage(); };
 
 document.addEventListener('keydown', e => {
   if (!$('scrim').hidden) { if (e.key === 'Escape') dialogCancel(); return; }
   if (e.key === 'Escape') { closeMenu(); if (sel) { sel = null; requestLive(); } }
+  if (S.view === 'study') { studyKey(e); return; }
   if (S.view !== 'editor') return;
   const k = e.key.toLowerCase(), mod = e.metaKey || e.ctrlKey;
   if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
@@ -1561,8 +1692,9 @@ function dialog({ title, text, input, fields, covers, templates, actions, scroll
     const fieldEls = {};
     for (const f of fields || []) {
       const l = document.createElement('label'); l.className = 'field'; l.textContent = f.label;
-      const el = document.createElement('input'); el.type = f.type || 'text'; el.id = 'dlg-' + f.id; el.value = f.value || '';
-      el.autocomplete = 'off'; el.autocapitalize = 'off'; el.spellcheck = false; if (f.placeholder) el.placeholder = f.placeholder;
+      const el = document.createElement(f.multiline ? 'textarea' : 'input'); if (!f.multiline) el.type = f.type || 'text'; el.id = 'dlg-' + f.id; el.value = f.value || '';
+      if (f.multiline) { el.rows = 3; el.spellcheck = true; }
+      el.autocomplete = 'off'; if (!f.multiline) { el.autocapitalize = 'off'; el.spellcheck = false; } if (f.placeholder) el.placeholder = f.placeholder;
       l.appendChild(el); form.appendChild(l); fieldEls[f.id] = el;
     }
     let cov = covers ? covers.value || 'none' : null, covImg = null;
@@ -1635,7 +1767,7 @@ function dialog({ title, text, input, fields, covers, templates, actions, scroll
     form.onsubmit = ev => { ev.preventDefault(); done({ value: inp ? inp.value.trim() : null, template: tpl, format: fmt, cover: cov, coverImg: covImg, fields: Object.fromEntries(Object.entries(fieldEls).map(([k, el]) => [k, el.value.trim()])) }); };
     dialogCancel = () => done(null);
     scrim.hidden = false;
-    setTimeout(() => { if (inp) { inp.focus(); inp.select(); } }, 30);
+    setTimeout(() => { if (inp) { inp.focus(); inp.select(); } else { const f = form.querySelector('textarea, input[type=text]'); if (f) f.focus(); } }, 30);
   });
 }
 $('scrim').addEventListener('pointerdown', e => { if (e.target === $('scrim')) dialogCancel(); });
@@ -1666,8 +1798,8 @@ function when(ts) {
 }
 async function showLibrary() {
   S.view = 'library'; S.page = null; S.nb = null; ink = null; eraser = null; touches.clear(); gesture = null;
-  $('editor').hidden = true; $('library').hidden = false;
-  renderLibStatus();
+  setView('library');
+  renderLibStatus(); updateDueBadge();
   const nbs = (await Store.getAll('notebooks')).filter(n => !n.deleted).sort((a, b) => b.u - a.u);
   const grid = $('nbGrid'); grid.textContent = '';
   $('emptyState').hidden = nbs.length > 0;
@@ -1830,7 +1962,7 @@ async function openNotebook(id, index = 0) {
     await save('pages', p); await save('notebooks', nb);
   }
   S.view = 'editor';
-  $('library').hidden = true; $('editor').hidden = false;
+  setView('editor');
   renderToolbar();
   resize();
   await gotoPage(Math.min(index, S.pages.length - 1));
@@ -1844,7 +1976,7 @@ async function gotoPage(i) {
   if (token !== S.loadToken) return;
   strokes.sort((a, b) => a.t - b.t);
   S.pi = i; S.page = page; S.strokes = strokes;
-  S.byId = new Map(strokes.map(s => [s.id, s])); S.cache.clear(); sel = null; drag = null; lasso = null; selBar.hidden = true;
+  S.byId = new Map(strokes.map(s => [s.id, s])); S.cache.clear(); sel = null; drag = null; lasso = null; selBar.hidden = true; showCardBar();
   const f = fmtOf(page); PW = f.w; PH = f.h;
   fitView(PW > PH ? 'page' : 'width');
   renderPageUI(); renderBg(); clearLive();
@@ -2083,8 +2215,8 @@ async function exportNotebookPdf(nb) {
 window.__pdf = { exportNotebookPdf, buildPdf, pageToPdf };
 async function exportBackup() {
   flushMeta();
-  const [notebooks, pages, strokes, assets] = await Promise.all([Store.getAll('notebooks'), Store.getAll('pages'), Store.getAll('strokes'), Store.getAll('assets')]);
-  const data = { app: 'tabula', version: 2, exported: new Date().toISOString(), notebooks, pages, strokes, assets };
+  const [notebooks, pages, strokes, assets, cards] = await Promise.all([Store.getAll('notebooks'), Store.getAll('pages'), Store.getAll('strokes'), Store.getAll('assets'), Store.getAll('cards')]);
+  const data = { app: 'tabula', version: 3, exported: new Date().toISOString(), notebooks, pages, strokes, assets, cards };
   await saveFile(new Blob([JSON.stringify(data)], { type: 'application/json' }), `tabula-backup-${stamp()}.json`);
   lsSet('tabula.lastBackup', Date.now());
   if (S.view === 'library') renderLibStatus();
@@ -2118,6 +2250,7 @@ async function mergeData(data, opts = {}) {
     return out.length;
   };
   if (data.assets) await merge('assets', data.assets);
+  if (data.cards) await merge('cards', data.cards);
   const changed = (data.pages ? await merge('pages', data.pages) : 0) + (data.strokes ? await merge('strokes', data.strokes) : 0);
   const n = data.notebooks ? await merge('notebooks', data.notebooks) : 0;
   return { notebooks: n, total: changed + n };
@@ -2259,7 +2392,7 @@ $('importFile').onchange = e => { const f = e.target.files && e.target.files[0];
 // p: Seiten-ID → Zeitpunkt der letzten Änderung, i: Inhaltsverzeichnis geändert, a: neue Bilder
 const DIRTY = {
   snap: Object.assign({ p: {}, i: 0 }, lsGet('tabula.dirtySnap', {})),
-  git: Object.assign({ p: {}, i: 0, a: 0 }, lsGet('tabula.dirtyGit', {}))
+  git: Object.assign({ p: {}, i: 0, a: 0, c: {} }, lsGet('tabula.dirtyGit', {}))
 };
 const persistDirty = () => { lsSet('tabula.dirtySnap', DIRTY.snap); lsSet('tabula.dirtyGit', DIRTY.git); };
 function markChanged(store, items, git = true) {
@@ -2271,6 +2404,7 @@ function markChanged(store, items, git = true) {
     if (store === 'strokes') for (const s of items) { if (!s.pageId) continue; if (!d.p[s.pageId]) grew = true; d.p[s.pageId] = now; }
     else if (store === 'pages' || store === 'notebooks') { if (!d.i) grew = true; d.i = now; }
     else if (store === 'assets' && name === 'git') { if (!d.a) grew = true; d.a = now; }
+    else if (store === 'cards' && name === 'git') { d.c = d.c || {}; for (const c of items) { if (!d.c[c.notebookId]) grew = true; d.c[c.notebookId] = now; } }
   }
   if (grew) persistDirty();
 }
@@ -2479,7 +2613,7 @@ document.addEventListener('visibilitychange', () => {
 /* ================= Sicherung in einem privaten GitHub-Repository (Git-Data-Schnittstelle) ================= */
 const GH_API = window.__TABULA_API__ || 'https://api.github.com';
 const syncCfg = () => { const c = lsGet('tabula.sync', null); return c && c.repo && c.token ? c : null; };
-const gitPending = () => Object.keys(DIRTY.git.p).length > 0 || !!DIRTY.git.i || !!DIRTY.git.a;
+const gitPending = () => Object.keys(DIRTY.git.p).length > 0 || !!DIRTY.git.i || !!DIRTY.git.a || Object.keys(DIRTY.git.c || {}).length > 0;
 let gitProgress = '';
 const writes = [];   // Zeitpunkte schreibender Aufrufe, für die Drosselung
 async function throttle() {
@@ -2527,7 +2661,7 @@ async function pullChanges(remote, known) {
   const changed = Object.keys(remote).filter(p => remote[p] !== known[p]);
   if (!changed.length) return { total: 0, legacy: false };
   let total = 0, legacy = false, n = 0;
-  const order = p => p === 'index.json' ? 0 : p === 'tabula.json' ? 1 : p.startsWith('pages/') ? 2 : 3;
+  const order = p => p === 'index.json' ? 0 : p === 'tabula.json' ? 1 : p.startsWith('pages/') ? 2 : p.startsWith('cards/') ? 3 : p.startsWith('reviews/') ? 4 : 5;
   changed.sort((a, b) => order(a) - order(b));
   const localAssets = new Set(await Store.keys('assets'));
   for (const path of changed) {
@@ -2540,6 +2674,10 @@ async function pullChanges(remote, known) {
       const d = JSON.parse(await (await ghRaw(remote[path])).text());
       total += (await mergeData({ notebooks: d.notebooks, pages: d.pages, strokes: d.strokes }, { fromGit: true })).total;
       legacy = true;
+    } else if (/^cards\/[^/]+\.jsonl$/.test(path)) {
+      total += await mergeCardFiles(path.slice(6, -6), await (await ghRaw(remote[path])).text(), null);
+    } else if (/^reviews\/[^/]+\.json$/.test(path)) {
+      total += await mergeCardFiles(path.slice(8, -5), null, await (await ghRaw(remote[path])).text());
     } else if (/^pages\/[^/]+\.jsonl$/.test(path)) {
       const pid = path.slice(6, -6);
       const strokes = parsePage(await (await ghRaw(remote[path])).text(), pid);
@@ -2577,7 +2715,17 @@ async function collectWork(meta, full) {
   }
   const remoteAssets = new Set(Object.keys(meta.tree).map(p => (/^assets\/([^/]+)\./.exec(p) || [])[1]).filter(Boolean));
   const assets = (full || DIRTY.git.a) ? (await Store.keys('assets')).filter(id => !remoteAssets.has(id)) : [];
-  return { t0, files, pids, idx, assets, legacy: !!meta.tree['tabula.json'] };
+  const nbIds = full ? (await Store.getAll('notebooks')).map(n => n.id) : Object.keys(DIRTY.git.c || {}), cids = [];
+  for (const nb of nbIds) {
+    cids.push(nb);
+    const cards = await Store.getAll('cards', 'notebookId', nb), pc = `cards/${nb}.jsonl`, pr = `reviews/${nb}.json`;
+    if (!cards.length && !meta.tree[pc]) continue;
+    for (const [path, content] of [[pc, cardsFile(cards)], [pr, reviewFile(cards)]]) {
+      const bytes = utf8(content), sha = await blobSha(bytes);
+      if (sha !== meta.tree[path]) files.push({ path, content, sha, size: bytes.length });
+    }
+  }
+  return { t0, files, pids, idx, assets, cids, legacy: !!meta.tree['tabula.json'] };
 }
 
 const stampText = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
@@ -2612,6 +2760,8 @@ async function syncOnce(opts) {
   const work = await collectWork(meta, full);
   const done = () => {
     clearDirty('git', work.pids, work.idx, true, work.t0);
+    for (const nb of work.cids) if (DIRTY.git.c[nb] && DIRTY.git.c[nb] <= work.t0) delete DIRTY.git.c[nb];
+    persistDirty();
     if (full) { lsSet('tabula.gitFull', Date.now()); lsSet('tabula.gitFullNeeded', 0); }
     lsSet('tabula.gitPush', Date.now()); lsSet('tabula.gitError', '');
   };
@@ -2714,6 +2864,305 @@ async function syncSettings() {
   toast(lsGet('tabula.gitError', '') ? `GitHub: ${lsGet('tabula.gitError', '')}` : 'Mit GitHub abgeglichen');
   renderLibStatus();
 }
+
+/* ================= Karteikarten (Leitner, fünf Fächer) ================= */
+const LEITNER_DAYS = [0, 1, 3, 7, 14, 30];   // Abstand in Tagen für Fach 1 bis 5
+const dayStart = (t = Date.now()) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const isDue = c => !c.deleted && (c.due || 0) <= Date.now();
+const VIEWS = ['library', 'editor', 'decks', 'study'];
+function setView(name) { for (const v of VIEWS) $(v).hidden = v !== name; if (name !== 'editor') { selBar.hidden = true; } }
+let cardDraft = null;
+
+/* Dateiformat der Karten auf GitHub: Inhalt und Lernstand getrennt, damit eine Abfrage nur die kleine Lernstand-Datei ändert */
+function faceOut(f) {
+  if (!f) return null;
+  if (f.text != null) return { text: f.text };
+  return { w: f.w, h: f.h, s: (f.items || []).map(it => { const o = { ...it }; delete o.pts; if (it.pts && it.pts.length) o.p = packPts(it.pts, it.pr); return o; }) };
+}
+function faceIn(f) {
+  if (!f) return null;
+  if (f.text != null) return { text: f.text };
+  return { w: f.w, h: f.h, items: (f.s || []).map(o => { const it = { ...o }; it.pts = o.p ? unpackPts(o.p, o.pr) : []; delete it.p; return it; }) };
+}
+function cardsFile(cards) {
+  return cards.slice().sort(byTime).map(c => c.deleted ? JSON.stringify({ id: c.id, t: c.t, cu: c.cu, d: 1 })
+    : JSON.stringify({ id: c.id, t: c.t, cu: c.cu, sec: c.sectionId || null, src: c.src || null, f: faceOut(c.front), b: faceOut(c.back) })).join('\n') + '\n';
+}
+function reviewFile(cards) {
+  const ls = cards.slice().sort((a, b) => (a.id < b.id ? -1 : 1)).map(c => `${JSON.stringify(c.id)}:[${c.box || 1},${c.due || 0},${c.ru || 0}]`);
+  return `{\n${ls.join(',\n')}\n}\n`;
+}
+async function mergeCardFiles(nbId, contentText, reviewText) {
+  const cur = new Map((await Store.getAll('cards', 'notebookId', nbId)).map(c => [c.id, c])), out = new Map();
+  const get = id => out.get(id) || cur.get(id);
+  if (contentText != null) for (const l of contentText.split('\n')) {
+    if (!l.trim()) continue;
+    const o = JSON.parse(l), ex = get(o.id);
+    if (ex && (ex.cu || 0) >= (o.cu || 0)) continue;
+    const base = ex || { id: o.id, notebookId: nbId, box: 1, due: 0, ru: 0 };
+    const c = o.d ? { ...base, t: o.t, cu: o.cu, deleted: 1 }
+      : { ...base, t: o.t, cu: o.cu, sectionId: o.sec || null, src: o.src || null, front: faceIn(o.f), back: faceIn(o.b), deleted: 0 };
+    c.u = Math.max(c.cu || 0, c.ru || 0); out.set(c.id, c);
+  }
+  if (reviewText != null) {
+    const r = JSON.parse(reviewText);
+    for (const id in r) {
+      const [box, due, ru] = r[id], ex = get(id);
+      if (!ex || (ex.ru || 0) >= ru) continue;
+      const c = { ...ex, box, due, ru }; c.u = Math.max(c.cu || 0, ru); out.set(id, c);
+    }
+  }
+  if (out.size) await Store.put('cards', [...out.values()]);
+  return out.size;
+}
+
+/* Karte aus der Lasso-Auswahl: erst Vorderseite, dann Rückseite */
+function faceFromSelection() {
+  const items = selItems().filter(s => !s.bg);
+  if (!items.length) return null;
+  let b = null;
+  for (const s of items) { const q = itemBox(s); b = b ? [Math.min(b[0], q[0]), Math.min(b[1], q[1]), Math.max(b[2], q[2]), Math.max(b[3], q[3])] : q; }
+  const m = 30, dx = m - b[0], dy = m - b[1];
+  const out = items.slice().sort(byTime).map(s => {
+    if (s.tool === 'image') return { tool: 'image', asset: s.asset, x: r1(s.x + dx), y: r1(s.y + dy), w: s.w, h: s.h };
+    const pts = s.pts.slice();
+    for (let j = 0; j < pts.length; j += 3) { pts[j] = r1(pts[j] + dx); pts[j + 1] = r1(pts[j + 1] + dy); }
+    return { tool: s.tool, color: s.color, size: s.size, pr: s.pr || 0, pts };
+  });
+  return { w: r1(b[2] - b[0] + 2 * m), h: r1(b[3] - b[1] + 2 * m), items: out };
+}
+const cardBar = $('cardBar');
+for (const t of ['pointerdown', 'touchstart']) cardBar.addEventListener(t, e => e.stopPropagation(), { passive: true });
+function showCardBar() { cardBar.hidden = !cardDraft; }
+async function cardFromSelection() {
+  const face = faceFromSelection(); if (!face || !S.page) return;
+  sel = null; requestLive();
+  if (!cardDraft) {
+    cardDraft = { nb: S.nb.id, sec: S.page.sectionId || null, src: S.page.id, front: face };
+    showCardBar();
+    return;
+  }
+  await finishCard(face);
+}
+async function finishCard(back) {
+  const d = cardDraft; cardDraft = null; showCardBar();
+  if (!d) return;
+  const now = Date.now();
+  const c = { id: uid(), notebookId: d.nb, sectionId: d.sec, src: d.src, front: d.front, back, box: 1, due: 0, t: now, cu: now, ru: now, u: now, deleted: 0 };
+  await save('cards', c);
+  const n = (await Store.getAll('cards', 'notebookId', d.nb)).filter(x => !x.deleted).length;
+  toast(`Karte angelegt · ${n} ${n === 1 ? 'Karte' : 'Karten'} in diesem Heft`);
+  updateStudyLabel();
+}
+$('cardCancelBtn').onclick = () => { cardDraft = null; showCardBar(); toast('Karte verworfen'); };
+$('cardTypeBtn').onclick = async () => {
+  const r = await dialog({ title: 'Antwort tippen', fields: [{ id: 'a', label: 'Rückseite', multiline: true }], confirm: 'Karte anlegen' });
+  if (r && r.fields.a) await finishCard({ text: r.fields.a });
+};
+async function newTextCard(nbId, sectionId, src) {
+  const r = await dialog({ title: 'Textkarte', fields: [{ id: 'q', label: 'Vorderseite (Frage)', multiline: true }, { id: 'a', label: 'Rückseite (Antwort)', multiline: true }], confirm: 'Anlegen' });
+  if (!r || !r.fields.q || !r.fields.a) return false;
+  const now = Date.now();
+  await save('cards', { id: uid(), notebookId: nbId, sectionId: sectionId || null, src: src || null, front: { text: r.fields.q }, back: { text: r.fields.a }, box: 1, due: 0, t: now, cu: now, ru: now, u: now, deleted: 0 });
+  toast('Karte angelegt');
+  updateStudyLabel();
+  return true;
+}
+
+/* Zähler */
+async function liveCards() {
+  const [cards, nbs] = await Promise.all([Store.getAll('cards'), Store.getAll('notebooks')]);
+  const alive = new Set(nbs.filter(n => !n.deleted).map(n => n.id));
+  return { cards: cards.filter(c => !c.deleted && alive.has(c.notebookId)), nbs: nbs.filter(n => !n.deleted) };
+}
+async function updateDueBadge() {
+  try {
+    const { cards } = await liveCards(), n = cards.filter(isDue).length, b = $('dueBadge');
+    b.textContent = String(n); b.hidden = !n;
+  } catch (e) {}
+}
+async function updateStudyLabel() {
+  if (!S.nb) return;
+  const cards = (await Store.getAll('cards', 'notebookId', S.nb.id)).filter(c => !c.deleted), due = cards.filter(isDue).length;
+  $('studyNbLabel').textContent = cards.length ? `Karten dieses Hefts lernen (${due} fällig von ${cards.length})` : 'Karten dieses Hefts lernen';
+}
+
+/* Karteikasten-Übersicht */
+async function showDecks() {
+  flushMeta();
+  S.view = 'decks'; S.page = null; S.nb = null; setView('decks');
+  const { cards, nbs } = await liveCards();
+  const list = $('deckList'); list.textContent = '';
+  const byNb = new Map();
+  for (const c of cards) { if (!byNb.has(c.notebookId)) byNb.set(c.notebookId, []); byNb.get(c.notebookId).push(c); }
+  const allDue = cards.filter(isDue).length;
+  $('studyAllBtn').textContent = allDue ? `Alle fälligen lernen (${allDue})` : 'Heute nichts fällig';
+  $('studyAllBtn').disabled = !allDue;
+  $('decksEmpty').hidden = byNb.size > 0;
+  const order = nbs.filter(n => byNb.has(n.id)).sort((a, b) => byNb.get(b.id).filter(isDue).length - byNb.get(a.id).filter(isDue).length || a.title.localeCompare(b.title, 'de'));
+  for (const nb of order) {
+    const cs = byNb.get(nb.id), due = cs.filter(isDue).length;
+    const counts = [1, 2, 3, 4, 5].map(k => cs.filter(c => (c.box || 1) === k).length), max = Math.max(1, ...counts);
+    const el = document.createElement('article'); el.className = 'deck';
+    const info = document.createElement('div'); info.className = 'deck-info';
+    const h = document.createElement('h2'); h.textContent = nb.title;
+    const m = document.createElement('p'); m.className = 'deck-meta';
+    m.innerHTML = `${cs.length} ${cs.length === 1 ? 'Karte' : 'Karten'} · ${due ? `<b>${due} fällig</b>` : 'nichts fällig'}`;
+    const boxes = document.createElement('div'); boxes.className = 'boxes'; boxes.setAttribute('aria-label', counts.map((n, i) => `Fach ${i + 1}: ${n}`).join(', '));
+    counts.forEach((n, i) => {
+      const col = document.createElement('div'); col.className = 'boxcol';
+      col.innerHTML = `<span class="n">${n}</span><span class="boxbar"><i style="height:${Math.round(n / max * 100)}%"></i></span><span class="l">F${i + 1}</span>`;
+      boxes.appendChild(col);
+    });
+    info.append(h, m, boxes);
+    const acts = document.createElement('div'); acts.className = 'deck-actions';
+    const mk = (label, cls, fn, disabled) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (cls ? ' ' + cls : ''); b.textContent = label; b.disabled = !!disabled; b.onclick = fn; acts.appendChild(b); };
+    mk(due ? `Lernen (${due})` : 'Lernen', 'primary', () => startStudy([nb.id], false, 'decks'), !due);
+    mk('Üben', '', () => startStudy([nb.id], true, 'decks'));
+    mk('Neue Karte', '', async () => { if (await newTextCard(nb.id)) showDecks(); });
+    mk('Karten', '', () => cardList(nb));
+    el.append(info, acts);
+    list.appendChild(el);
+  }
+}
+const cardLabel = c => {
+  const f = c.front || {};
+  const what = f.text != null ? f.text.replace(/\s+/g, ' ').slice(0, 60) + (f.text.length > 60 ? '…' : '') : 'Handschrift';
+  return `${what} · Fach ${c.box || 1}${isDue(c) ? ' · fällig' : ''}`;
+};
+async function cardList(nb) {
+  const cards = (await Store.getAll('cards', 'notebookId', nb.id)).filter(c => !c.deleted).sort(byTime);
+  if (!cards.length) { toast('Dieses Heft hat noch keine Karten.'); return; }
+  const id = await dialog({ title: `Karten · ${nb.title}`, actions: cards.map(c => ({ id: c.id, label: cardLabel(c) })), scroll: true });
+  if (!id) return;
+  const c = cards.find(x => x.id === id);
+  const page = c.src ? await Store.get('pages', c.src) : null;
+  const acts = [{ id: 'show', label: 'Ansehen' }];
+  if (page && !page.deleted) acts.push({ id: 'src', label: 'Zur Seite im Heft' });
+  if ((c.box || 1) > 1) acts.push({ id: 'reset', label: 'Zurück in Fach 1' });
+  acts.push({ id: 'del', label: 'Karte löschen', danger: true });
+  const a = await dialog({ title: cardLabel(c), actions: acts });
+  if (a === 'show') startStudy([nb.id], true, 'decks', [c.id]);
+  else if (a === 'src') openSource(c);
+  else if (a === 'reset') { const now = Date.now(); Object.assign(c, { box: 1, due: 0, ru: now, u: now }); await save('cards', c); showDecks(); }
+  else if (a === 'del') { const now = Date.now(); Object.assign(c, { deleted: 1, cu: now, u: now }); await save('cards', c); toast('Karte gelöscht'); showDecks(); }
+}
+async function openSource(c) {
+  if (!c || !c.src) return;
+  const page = await Store.get('pages', c.src);
+  if (!page || page.deleted) { toast('Die Seite dieser Karte gibt es nicht mehr.'); return; }
+  await openNotebook(page.notebookId);
+  const i = S.pages.findIndex(p => p.id === c.src);
+  if (i >= 0) await gotoPage(i);
+}
+
+/* Abfrage */
+let ST = null;
+async function startStudy(nbIds, cram, back, onlyIds) {
+  const { cards, nbs } = await liveCards();
+  let q = cards.filter(c => nbIds.includes(c.notebookId) && (!onlyIds || onlyIds.includes(c.id)));
+  if (!cram) q = q.filter(isDue);
+  if (!q.length) { toast(cram ? 'Hier gibt es noch keine Karten.' : 'Heute ist hier nichts fällig. Mit „Üben“ kannst du trotzdem wiederholen.'); return; }
+  for (let i = q.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [q[i], q[j]] = [q[j], q[i]]; }
+  q.sort((a, b) => (a.box || 1) - (b.box || 1));   // unsichere Karten zuerst, innerhalb eines Fachs gemischt
+  flushMeta();
+  const title = nbIds.length === 1 ? (nbs.find(n => n.id === nbIds[0]) || {}).title : 'Alle Hefte';
+  ST = { q, i: 0, flipped: false, cram, back, wrong: new Set(), right: 0, missed: 0, total: q.length, title, nbIds,
+         ret: back === 'editor' && S.nb ? { nb: S.nb.id, page: S.page && S.page.id } : null };
+  S.view = 'study'; setView('study');
+  $('studyDone').hidden = true; $('studyBody').hidden = false;
+  renderStudy();
+}
+async function drawFace(cv, face) {
+  const r = cv.getBoundingClientRect(), dpr = Math.min(3, window.devicePixelRatio || 1);
+  cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+  if (!face || !face.items) return;
+  await loadAssets(face.items.filter(x => x.tool === 'image').map(x => x.asset));
+  const k = Math.min(r.width / face.w, r.height / face.h, 2.6), ox = (r.width - face.w * k) / 2, oy = (r.height - face.h * k) / 2;
+  ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * ox, dpr * oy);
+  drawStrokes(ctx, face.items, null, buildEntry);
+}
+async function renderStudy() {
+  if (!ST) return;
+  if (ST.i >= ST.q.length) return finishStudy();
+  const c = ST.q[ST.i], face = ST.flipped ? c.back : c.front, card = $('kcard');
+  $('studyTitle').textContent = ST.cram ? `${ST.title} · Üben` : ST.title;
+  $('studyMeta').textContent = `Karte ${Math.min(ST.i + 1, ST.q.length)} von ${ST.q.length}${ST.right + ST.missed ? ` · ${ST.right} gewusst, ${ST.missed} nicht` : ''}`;
+  $('studyBar').style.width = `${Math.round(ST.i / ST.q.length * 100)}%`;
+  $('kSide').textContent = ST.flipped ? 'Antwort' : 'Frage';
+  $('kBox').textContent = `Fach ${c.box || 1}`;
+  card.classList.toggle('back', ST.flipped);
+  card.setAttribute('aria-label', ST.flipped ? 'Antwort' : 'Frage, tippen zum Umdrehen');
+  $('studyHint').textContent = ST.flipped ? (ST.cram ? 'Üben verändert die Fächer nicht.' : '') : 'Tippe auf die Karte, um die Antwort zu sehen.';
+  $('studyActions').hidden = !ST.flipped;
+  $('studySrc').hidden = !c.src;
+  const txt = $('kText'), cv = $('kCanvas');
+  if (face && face.text != null) { txt.hidden = false; txt.textContent = face.text; cv.hidden = true; }
+  else { txt.hidden = true; cv.hidden = false; await drawFace(cv, face); }
+}
+function flipCard() {
+  if (!ST || ST.flipped) return;
+  const card = $('kcard');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce) { ST.flipped = true; renderStudy(); return; }
+  card.classList.add('turn');
+  setTimeout(() => { ST.flipped = true; renderStudy().then(() => card.classList.remove('turn')); }, 200);
+}
+async function answer(ok) {
+  if (!ST || !ST.flipped) return;
+  const c = ST.q[ST.i], now = Date.now();
+  if (!ST.cram) {
+    if (ok) {
+      if (ST.wrong.has(c.id)) { c.box = 1; c.due = dayStart() + 86400e3; }   // heute schon einmal falsch: morgen wieder
+      else { c.box = Math.min(5, (c.box || 1) + 1); c.due = dayStart() + LEITNER_DAYS[c.box] * 86400e3; }
+    } else { c.box = 1; c.due = 0; }
+    c.ru = now; c.u = Math.max(c.cu || 0, now);
+    await save('cards', c);
+  }
+  if (ok) ST.right++; else { ST.missed++; ST.wrong.add(c.id); ST.q.push(c); }   // falsche Karten kommen am Ende noch einmal
+  ST.i++; ST.flipped = false;
+  renderStudy();
+}
+async function finishStudy() {
+  $('studyBody').hidden = true; $('studyDone').hidden = false;
+  const { cards } = await liveCards();
+  const tomorrow = dayStart() + 2 * 86400e3, soon = cards.filter(c => ST.nbIds.includes(c.notebookId) && (c.due || 0) < tomorrow && (c.due || 0) > Date.now()).length;
+  $('doneTitle').textContent = 'Geschafft';
+  const first = ST.total;
+  $('doneText').textContent = ST.cram
+    ? `${first} ${first === 1 ? 'Karte' : 'Karten'} geübt, ${ST.missed ? `${ST.missed}-mal nicht gewusst` : 'alle gewusst'}. Die Fächer bleiben unverändert.`
+    : `${first} ${first === 1 ? 'Karte' : 'Karten'} abgefragt. ${ST.wrong.size ? `${ST.wrong.size} ${ST.wrong.size === 1 ? 'Karte liegt' : 'Karten liegen'} wieder in Fach 1 und ${ST.wrong.size === 1 ? 'kommt' : 'kommen'} morgen dran.` : 'Alle gewusst.'}${soon ? ` Morgen ${soon === 1 ? 'ist 1 Karte' : `sind ${soon} Karten`} fällig.` : ''}`;
+  $('doneBack').textContent = ST.ret ? 'Zurück zum Heft' : 'Zurück zum Karteikasten';
+  updateDueBadge();
+}
+async function exitStudy() {
+  const st = ST; ST = null;
+  if (st && st.ret) {
+    await openNotebook(st.ret.nb);
+    const i = S.pages.findIndex(p => p.id === st.ret.page); if (i >= 0) await gotoPage(i);
+    updateStudyLabel();
+  } else showDecks();
+}
+function studyKey(e) {
+  if (!ST) return;
+  if (e.key === 'Escape') { exitStudy(); return; }
+  if (!$('studyDone').hidden) { if (e.key === 'Enter') exitStudy(); return; }
+  if (!ST.flipped && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); flipCard(); }
+  else if (ST.flipped && (e.key === '1' || e.key === 'ArrowLeft')) answer(false);
+  else if (ST.flipped && (e.key === '2' || e.key === 'ArrowRight' || e.key === ' ')) { e.preventDefault(); answer(true); }
+}
+$('kcard').onclick = flipCard;
+$('kWrong').onclick = () => answer(false);
+$('kRight').onclick = () => answer(true);
+$('studyBack').onclick = exitStudy;
+$('doneBack').onclick = exitStudy;
+$('studySrc').onclick = () => { const c = ST && ST.q[ST.i]; if (c) { ST = null; openSource(c); } };
+$('decksBtn').onclick = showDecks;
+$('decksBack').onclick = () => showLibrary();
+$('studyAllBtn').onclick = async () => { const { nbs } = await liveCards(); startStudy(nbs.map(n => n.id), false, 'decks'); };
+window.addEventListener('resize', () => { if (S.view === 'study' && ST && ST.i < ST.q.length) renderStudy(); });
 
 /* ================= Beispielheft beim ersten Start ================= */
 function seedStrokes(pageId) {
