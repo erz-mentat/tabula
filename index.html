@@ -1866,6 +1866,8 @@ async function showLibrary() {
   setView('library');
   renderLibStatus(); updateDueBadge();
   const nbs = (await Store.getAll('notebooks')).filter(n => !n.deleted).sort((a, b) => b.u - a.u);
+  const pageCount = new Map();
+  for (const pg of await Store.getAll('pages')) if (!pg.deleted) pageCount.set(pg.notebookId, (pageCount.get(pg.notebookId) || 0) + 1);
   const grid = $('nbGrid'); grid.textContent = '';
   $('emptyState').hidden = nbs.length > 0;
   grid.hidden = !nbs.length;
@@ -1879,7 +1881,7 @@ async function showLibrary() {
     const tx = document.createElement('div'); tx.className = 'nb-text';
     const h = document.createElement('h2'); h.className = 'nb-title'; h.textContent = nb.title;
     const p = document.createElement('p'); p.className = 'nb-sub';
-    const n = nb.pageIds.length; p.textContent = `${n} ${n === 1 ? 'Seite' : 'Seiten'} · ${when(nb.u)}`;
+    const n = pageCount.get(nb.id) || 0; p.textContent = `${n} ${n === 1 ? 'Seite' : 'Seiten'} · ${when(nb.u)}`;
     tx.append(h, p);
     const more = document.createElement('button'); more.type = 'button'; more.className = 'icon-btn';
     more.setAttribute('aria-label', 'Optionen für ' + nb.title);
@@ -2016,6 +2018,10 @@ async function openNotebook(id, index = 0) {
   const nb = await Store.get('notebooks', id); if (!nb) return;
   const pages = await Store.getAll('pages', 'notebookId', id);
   const map = new Map(pages.map(p => [p.id, p]));
+  // Seiten, die inzwischen in einem anderen Heft liegen (verschoben auf einem anderen Gerät), aus der Liste nehmen
+  const moved = [];
+  for (const pid of nb.pageIds) if (!map.has(pid)) { const o = await Store.get('pages', pid); if (o && o.notebookId !== id) moved.push(pid); }
+  if (moved.length) { nb.pageIds = nb.pageIds.filter(pid => !moved.includes(pid)); await Store.put('notebooks', nb); }
   S.nb = nb;
   S.pages = nb.pageIds.map(pid => map.get(pid)).filter(p => p && !p.deleted);
   for (const p of pages) if (!p.deleted && !nb.pageIds.includes(p.id)) S.pages.push(p);   // verwaiste Seiten nicht verlieren
