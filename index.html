@@ -400,7 +400,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
         <button class="icon-btn" id="prevBtn" type="button" aria-label="Vorherige Seite"><svg class="i"><use href="#i-prev"/></svg></button>
         <button class="page-label" id="pageLabel" type="button" title="Seitenliste" aria-live="polite"><span class="pl-name" id="pageName"></span><span class="pl-count" id="pageCount">1 / 1</span></button>
         <button class="icon-btn" id="nextBtn" type="button" aria-label="Nächste Seite"><svg class="i"><use href="#i-next"/></svg></button>
-        <button class="icon-btn" id="addPageBtn" type="button" aria-label="Seite dahinter einfügen" title="Seite einfügen"><svg class="i"><use href="#i-plus"/></svg></button>
+        <button class="icon-btn" id="addPageBtn" type="button" aria-label="Einfügen: Textfeld, Seite oder Bild" title="Einfügen"><svg class="i"><use href="#i-plus"/></svg></button>
         <button class="icon-btn" id="menuBtn" type="button" aria-label="Seitenmenü" aria-haspopup="menu" aria-expanded="false"><svg class="i"><use href="#i-more"/></svg></button>
       </div>
     </header>
@@ -414,6 +414,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
         <button type="button" id="cardCancelBtn">Abbrechen</button>
       </div>
       <div class="selbar" id="selBar" hidden role="toolbar" aria-label="Auswahl">
+        <button type="button" id="selEdit" class="accent" hidden>Bearbeiten</button>
         <button type="button" id="selCard" class="accent">Karte</button>
         <span class="selbar-sep"></span>
         <button type="button" id="selCopy">Kopieren</button>
@@ -669,8 +670,39 @@ function bbox(flat, size) {
   const m = size;
   return [x0 - m, y0 - m, x1 + m, y1 + m];
 }
+/* Textfelder: Text in fester Breite, Zeilen werden umbrochen */
+const isBox = s => s.tool === 'image' || s.tool === 'text';
+const TEXT_FONT = 'Helvetica, Arial, sans-serif', TEXT_LH = 1.3;
+let textMeasure = null;
+function layoutText(s) {
+  if (!textMeasure) textMeasure = document.createElement('canvas').getContext('2d');
+  const m = textMeasure; m.font = `${s.size}px ${TEXT_FONT}`;
+  const out = [], w = Math.max(s.size * 2, s.w);
+  for (const para of String(s.text || '').split('\n')) {
+    let line = '';
+    for (const word of para.split(/ +/)) {
+      const tryL = line ? line + ' ' + word : word;
+      if (m.measureText(tryL).width <= w || !line) {
+        if (m.measureText(tryL).width > w && !line) {   // überlanges Wort zeichenweise trennen
+          let cur = '';
+          for (const ch of word) { if (m.measureText(cur + ch).width > w && cur) { out.push(cur); cur = ''; } cur += ch; }
+          line = cur;
+        } else line = tryL;
+      } else { out.push(line); line = word; }
+    }
+    out.push(line);
+  }
+  return out;
+}
+function drawText(ctx, s, e) {
+  ctx.save(); ctx.globalAlpha = 1; ctx.fillStyle = s.color || '#1b1f27'; ctx.font = `${s.size}px ${TEXT_FONT}`;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  e.lines.forEach((l, i) => { if (l) ctx.fillText(l, s.x, s.y + s.size * (1 + TEXT_LH * i)); });
+  ctx.restore();
+}
 function buildEntry(s) {
   if (s.tool === 'image') return { box: [s.x, s.y, s.x + s.w, s.y + s.h] };
+  if (s.tool === 'text') { const lines = layoutText(s); return { lines, box: [s.x, s.y, s.x + s.w, s.y + s.size * (0.3 + TEXT_LH * Math.max(1, lines.length))] }; }
   const withP = s.tool === 'pen' && !!s.pr;
   const pts = unflat(s.pts, withP);
   const outline = PF.getStroke(pts, strokeOpts(s.tool, s.size, withP, true));
@@ -805,6 +837,10 @@ function drawStrokes(ctx, strokes, vis, get = entry) {
     const c = assetImg(s.asset, requestBg);
     if (c.ready) ctx.drawImage(c.img, s.x, s.y, s.w, s.h);
   }
+  for (const s of strokes) {
+    if (s.deleted || s.tool !== 'text') continue;
+    const e = get(s); if (hitsRect(e.box, vis)) drawText(ctx, s, e);
+  }
   ctx.globalAlpha = MARKER_ALPHA;
   for (const s of strokes) {
     if (s.deleted || s.tool !== 'marker') continue;
@@ -813,7 +849,7 @@ function drawStrokes(ctx, strokes, vis, get = entry) {
   }
   ctx.globalAlpha = 1;
   for (const s of strokes) {
-    if (s.deleted || s.tool === 'marker' || s.tool === 'image') continue;
+    if (s.deleted || s.tool === 'marker' || isBox(s)) continue;
     const e = get(s); if (!hitsRect(e.box, vis)) continue;
     ctx.fillStyle = s.color; ctx.fill(e.path);
   }
@@ -903,7 +939,7 @@ function renderLive() {
   const box = S.tool === 'select' && !lasso ? selBox() : null;
   if (box) {   // gewählte Striche blau einfärben, damit klar ist, was die Auswahl enthält
     ctx.save(); ctx.globalAlpha = 0.55; ctx.fillStyle = '#3d6bff';
-    for (const s of selItems()) if (s.tool !== 'image') ctx.fill(entry(s).path);
+    for (const s of selItems()) if (!isBox(s)) ctx.fill(entry(s).path);
     ctx.restore();
   }
   if (flash && performance.now() < flash.until) {
@@ -1116,6 +1152,7 @@ function onTap(el, fn) {
 }
 function itemBox(s) {
   if (s.tool === 'image') return [s.x, s.y, s.x + s.w, s.y + s.h];
+  if (s.tool === 'text') return entry(s).box;
   const p = s.pts, m = (s.size || 4) / 2;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (let i = 0; i < p.length; i += 3) { const x = p[i], y = p[i + 1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
@@ -1134,7 +1171,8 @@ function imageAt(x, y, withBg) {
   let bg = null;
   for (let i = S.strokes.length - 1; i >= 0; i--) {
     const s = S.strokes[i];
-    if (s.tool !== 'image' || s.deleted || !(x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h)) continue;
+    if (!isBox(s) || s.deleted) continue;
+    const b = itemBox(s); if (!(x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3])) continue;
     if (!s.bg) return s;
     if (withBg && !bg) bg = s;
   }
@@ -1179,7 +1217,7 @@ function finishLasso() {
     if (!alive(s) || s.bg) continue;
     const q = itemBox(s);
     if (q[2] < bx0 || q[0] > bx1 || q[3] < by0 || q[1] > by1) continue;
-    if (s.tool === 'image') { if (inPoly(s.x + s.w / 2, s.y + s.h / 2, p)) ids.push(s.id); continue; }
+    if (isBox(s)) { if (inPoly((q[0] + q[2]) / 2, (q[1] + q[3]) / 2, p)) ids.push(s.id); continue; }
     const n = s.pts.length / 3, step = Math.max(1, Math.floor(n / 24));
     let hit = 0, tot = 0;
     for (let i = 0; i < n; i += step) { tot++; if (inPoly(s.pts[i * 3], s.pts[i * 3 + 1], p)) hit++; }
@@ -1188,7 +1226,7 @@ function finishLasso() {
   sel = ids.length ? { ids } : null;
   requestLive();
 }
-const geomOf = s => s.tool === 'image' ? { x: s.x, y: s.y, w: s.w, h: s.h } : { pts: s.pts, size: s.size };
+const geomOf = s => s.tool === 'image' ? { x: s.x, y: s.y, w: s.w, h: s.h } : s.tool === 'text' ? { x: s.x, y: s.y, w: s.w, size: s.size } : { pts: s.pts, size: s.size };
 function beginDrag(e, x, y, mode, box) {
   const items = selItems();
   drag = { id: e.pointerId, mode, x0: x, y0: y, box, items, orig: items.map(geomOf), moved: false };
@@ -1206,6 +1244,7 @@ function moveDrag([x, y]) {
   items.forEach((s, i) => {
     const o = orig[i];
     if (s.tool === 'image') { const [nx, ny] = f(o.x, o.y); s.x = r1(nx); s.y = r1(ny); s.w = r1(o.w * drag.k); s.h = r1(o.h * drag.k); }
+    else if (s.tool === 'text') { const [nx, ny] = f(o.x, o.y); s.x = r1(nx); s.y = r1(ny); s.w = r1(o.w * drag.k); s.size = clamp(r1(o.size * drag.k), 12, 600); }
     else {
       const p = new Array(o.pts.length);
       for (let j = 0; j < o.pts.length; j += 3) { const [nx, ny] = f(o.pts[j], o.pts[j + 1]); p[j] = r1(nx); p[j + 1] = r1(ny); p[j + 2] = o.pts[j + 2]; }
@@ -1241,7 +1280,7 @@ function copySel() {
   items.forEach((s, i) => {
     const c = JSON.parse(JSON.stringify(s));
     c.id = uid(); c.t = now + i; c.u = now; c.deleted = 0;
-    if (c.tool === 'image') { c.x = r1(c.x + off); c.y = r1(c.y + off); }
+    if (isBox(c)) { c.x = r1(c.x + off); c.y = r1(c.y + off); }
     else for (let j = 0; j < c.pts.length; j += 3) { c.pts[j] = r1(c.pts[j] + off); c.pts[j + 1] = r1(c.pts[j + 1] + off); }
     copies.push(c);
   });
@@ -1252,7 +1291,7 @@ function copySel() {
   renderBg(); requestLive(); touchMeta();
 }
 function recolorSel(color) {
-  const items = selItems().filter(s => s.tool === 'pen' && s.color !== color);
+  const items = selItems().filter(s => (s.tool === 'pen' || s.tool === 'text') && s.color !== color);
   if (!items.length) return;
   const now = Date.now(), ops = items.map(s => ({ id: s.id, before: { color: s.color }, after: { color } }));
   items.forEach(s => { s.color = color; s.u = now; });
@@ -1270,12 +1309,15 @@ TOOLS.pen.colors.forEach((c, i) => {
 onTap($('selCopy'), copySel);
 onTap($('selDelete'), deleteSel);
 onTap($('selCard'), () => cardFromSelection());
+onTap($('selEdit'), () => { const it = selItems(); if (it.length === 1 && it[0].tool === 'text') editText(it[0]); });
 for (const t of ['pointerdown', 'touchstart']) selBar.addEventListener(t, e => e.stopPropagation(), { passive: true });
 function updateSelBar(box) {
   if (!box || S.view !== 'editor') { if (!selBar.hidden) selBar.hidden = true; return; }
   const items = selItems();
   if (selBar.hidden) selBar.hidden = false;
-  const noPen = !items.some(s => s.tool === 'pen');
+  const noPen = !items.some(s => s.tool === 'pen' || s.tool === 'text');
+  const oneText = items.length === 1 && items[0].tool === 'text';
+  if ($('selEdit').hidden === oneText) $('selEdit').hidden = !oneText;
   if ($('selColors').hidden !== noPen) $('selColors').hidden = noPen;
   const lbl = cardDraft ? 'Als Rückseite' : 'Karte';
   if ($('selCard').textContent !== lbl) $('selCard').textContent = lbl;   // nur bei Änderung, sonst verliert Safari den Tipp
@@ -1308,7 +1350,7 @@ function eraseSeg(a, b) {
   const box = [Math.min(a[0], b[0]) - r, Math.min(a[1], b[1]) - r, Math.max(a[0], b[0]) + r, Math.max(a[1], b[1]) + r];
   let changed = false;
   for (const s of S.strokes) {
-    if (s.deleted || s.tool === 'image') continue;
+    if (s.deleted || isBox(s)) continue;
     if (!hitsRect(entry(s).box, box)) continue;
     if (hitStroke(s, a, b, r + s.size / 2)) { s.deleted = 1; s.u = Date.now(); eraser.hits.push(s.id); changed = true; }
   }
@@ -1383,6 +1425,8 @@ function onTouchUp(e, cancelled) {
   if (!cancelled && tapInfo && tapInfo.id === e.pointerId && touches.size === 0) {
     const now = performance.now();
     if (now - tapInfo.t < 280) {
+      const px = (tapInfo.x - S.v.x) / S.v.s, py = (tapInfo.y - S.v.y) / S.v.s, hit = imageAt(px, py);
+      if (hit && hit.tool === 'text') { lastTap = null; tapInfo = null; editText(hit); return; }
       if (lastTap && now - lastTap.t < 340 && Math.hypot(tapInfo.x - lastTap.x, tapInfo.y - lastTap.y) < 44) { lastTap = null; toggleFit(); }
       else lastTap = { t: now, x: tapInfo.x, y: tapInfo.y };
     }
@@ -1487,7 +1531,11 @@ $('undoBtn').onclick = undo;
 $('redoBtn').onclick = redo;
 $('prevBtn').onclick = () => { if (S.pi > 0) gotoPage(S.pi - 1); };
 $('nextBtn').onclick = () => { if (S.pi < S.pages.length - 1) gotoPage(S.pi + 1); };
-$('addPageBtn').onclick = addPage;
+$('addPageBtn').onclick = async () => {
+  closeMenu();
+  const a = await dialog({ title: 'Einfügen', actions: [{ id: 'text', label: 'Textfeld' }, { id: 'page', label: 'Neue Seite dahinter' }, { id: 'img', label: EMBEDDED ? 'Bild' : 'Bild oder PDF' }] });
+  if (a === 'text') insertText(); else if (a === 'page') addPage(); else if (a === 'img') $('imgBtn').onclick();
+};
 $('backBtn').onclick = () => { flushMeta(); closeMenu(); showLibrary(); };
 $('titleBtn').onclick = () => renameNotebook(S.nb);
 $('imgBtn').onclick = () => {
@@ -1552,6 +1600,33 @@ async function insertImage(a) {
   await loadAssets([asset.id]);
   renderBg(); requestLive();
   toast('Bild eingefügt. Mit Finger oder Stift ziehen verschiebt es, der blaue Punkt skaliert, der rote löscht.');
+}
+
+async function insertText() {
+  if (!S.page) return;
+  const r = await dialog({ title: 'Textfeld', fields: [{ id: 'text', label: 'Text', multiline: true, rows: 6 }], confirm: 'Einfügen' });
+  const text = r && r.fields && r.fields.text.replace(/\s+$/, '');
+  if (!text) return;
+  const v = visibleRect();
+  const vx0 = Math.max(0, v[0]), vx1 = Math.min(PW, v[2]), vy0 = Math.max(0, v[1]), vy1 = Math.min(PH, v[3]);
+  const size = r1(clamp(15 / S.v.s, 35, 90)), w = r1(Math.max(size * 6, Math.min((vx1 - vx0) * 0.8, PW - 200)));
+  const now = Date.now();
+  const s = { id: uid(), pageId: S.page.id, tool: 'text', text, color: TOOLS.pen.colors[S.sel.pen.color] || '#1b1f27', size,
+              x: r1(Math.max(40, (vx0 + vx1) / 2 - w / 2)), y: r1(Math.max(40, vy0 + (vy1 - vy0) * 0.3)), w, pts: [], deleted: 0, t: now, u: now };
+  S.strokes.push(s); S.byId.set(s.id, s);
+  pushHist({ ids: [s.id], del: 0 });
+  await save('strokes', s); touchMeta();
+  setTool('select'); sel = { ids: [s.id] };
+  renderBg(); requestLive();
+  toast('Textfeld eingefügt. Ziehen verschiebt es, der blaue Punkt skaliert, Antippen bearbeitet.');
+}
+async function editText(s) {
+  const r = await dialog({ title: 'Textfeld bearbeiten', text: 'Leer lassen, um das Textfeld zu löschen.', fields: [{ id: 'text', label: 'Text', multiline: true, rows: 6, value: s.text }], confirm: 'Übernehmen' });
+  if (!r || !r.fields) return;
+  const text = r.fields.text.replace(/\s+$/, ''), now = Date.now();
+  if (!text) { s.deleted = 1; s.u = now; save('strokes', s); pushHist({ ids: [s.id], del: 1 }); sel = null; }
+  else if (text !== s.text) { pushHist({ multi: [{ id: s.id, before: { text: s.text }, after: { text } }] }); s.text = text; s.u = now; S.cache.delete(s.id); save('strokes', s); }
+  touchMeta(); renderBg(); requestLive();
 }
 
 const secOf = p => p && S.nb && (S.nb.sections || []).find(x => x.id === p.sectionId) || null;
@@ -1758,7 +1833,7 @@ function dialog({ title, text, input, fields, covers, templates, actions, scroll
     for (const f of fields || []) {
       const l = document.createElement('label'); l.className = 'field'; l.textContent = f.label;
       const el = document.createElement(f.multiline ? 'textarea' : 'input'); if (!f.multiline) el.type = f.type || 'text'; el.id = 'dlg-' + f.id; el.value = f.value || '';
-      if (f.multiline) { el.rows = 3; el.spellcheck = true; }
+      if (f.multiline) { el.rows = f.rows || 3; el.spellcheck = true; }
       el.autocomplete = 'off'; if (!f.multiline) { el.autocapitalize = 'off'; el.spellcheck = false; } if (f.placeholder) el.placeholder = f.placeholder;
       l.appendChild(el); form.appendChild(l); fieldEls[f.id] = el;
     }
@@ -2220,9 +2295,10 @@ async function pageToPdf(page, strokes, imgs) {
     const name = `Im${imgs.length}`; imgs.push({ name, ...j });
     ops.push(`q ${fnum(s.w)} 0 0 ${fnum(-s.h)} ${fnum(s.x)} ${fnum(s.y + s.h)} cm /${name} Do Q`);
   }
+  for (const s of live) if (s.tool === 'text') drawText(ctx, s, buildEntry(s));
   const marks = live.filter(x => x.tool === 'marker');
   if (marks.length) { ops.push('q /GS1 gs'); for (const s of marks) ops.push(`${rgbOf(s.color)} rg ${strokeToPdf(s)}`); ops.push('Q'); }
-  for (const s of live) if (s.tool !== 'marker' && s.tool !== 'image') ops.push(`${rgbOf(s.color)} rg ${strokeToPdf(s)}`);
+  for (const s of live) if (s.tool !== 'marker' && !isBox(s)) ops.push(`${rgbOf(s.color)} rg ${strokeToPdf(s)}`);
   ops.push('Q');
   return { w: f.w * PT, h: f.h * PT, content: ops.join('\n') };
 }
@@ -2996,6 +3072,7 @@ function faceFromSelection() {
   const m = 30, dx = m - b[0], dy = m - b[1];
   const out = items.slice().sort(byTime).map(s => {
     if (s.tool === 'image') return { tool: 'image', asset: s.asset, x: r1(s.x + dx), y: r1(s.y + dy), w: s.w, h: s.h };
+    if (s.tool === 'text') return { tool: 'text', text: s.text, color: s.color, size: s.size, x: r1(s.x + dx), y: r1(s.y + dy), w: s.w };
     const pts = s.pts.slice();
     for (let j = 0; j < pts.length; j += 3) { pts[j] = r1(pts[j] + dx); pts[j + 1] = r1(pts[j + 1] + dy); }
     return { tool: s.tool, color: s.color, size: s.size, pr: s.pr || 0, pts };
