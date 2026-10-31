@@ -936,7 +936,7 @@ function renderLive() {
     ctx.closePath(); ctx.fillStyle = 'rgba(35,71,197,.06)'; ctx.fill();
     ctx.lineWidth = 1.6 * k; ctx.strokeStyle = '#2347c5'; ctx.setLineDash([6 * k, 5 * k]); ctx.stroke(); ctx.setLineDash([]);
   }
-  const box = S.tool === 'select' && !lasso ? selBox() : null;
+  const box = sel && !lasso ? selBox() : null;   // Auswahl per Lasso oder per Fingertipp
   if (box) {   // gewählte Striche blau einfärben, damit klar ist, was die Auswahl enthält
     ctx.save(); ctx.globalAlpha = 0.55; ctx.fillStyle = '#3d6bff';
     for (const s of selItems()) if (!isBox(s)) ctx.fill(entry(s).path);
@@ -1053,8 +1053,9 @@ function onDown(e) {
       return;
     }
     if (x < -10 || y < -10 || x > PW + 10 || y > PH + 10) return;
-    const conf = TOOLS[S.tool], sel = S.sel[S.tool];
-    ink = { id: e.pointerId, tool: S.tool, color: conf.colors[sel.color], size: conf.sizes[sel.size],
+    if (sel) { sel = null; requestLive(); }
+    const conf = TOOLS[S.tool], ps = S.sel[S.tool];
+    ink = { id: e.pointerId, tool: S.tool, color: conf.colors[ps.color], size: conf.sizes[ps.size],
             pts: [], pmin: 1, pmax: 0, pvals: new Set(), pred: null };
     addInkPoint(e, x, y, true);
     requestLive();
@@ -1388,7 +1389,6 @@ function onTouchDown(e) {
     const [x, y] = pageXY(e), box = sel ? selBox() : null, r = 30 / S.v.s;
     if (box && Math.hypot(x - box[2], y - box[3]) <= r) fingerDrag = { id: e.pointerId, q, x, y, ids: sel.ids, mode: 'scale' };
     else if (box && x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3]) fingerDrag = { id: e.pointerId, q, x, y, ids: sel.ids, mode: 'move' };
-    else { const img = imageAt(x, y, true); if (img) fingerDrag = { id: e.pointerId, q, x, y, ids: imageGroup(img), mode: 'move' }; }
   }
   if (touches.size === 2) {
     const [a, b] = [...touches.values()];
@@ -1425,8 +1425,18 @@ function onTouchUp(e, cancelled) {
   if (!cancelled && tapInfo && tapInfo.id === e.pointerId && touches.size === 0) {
     const now = performance.now();
     if (now - tapInfo.t < 280) {
-      const px = (tapInfo.x - S.v.x) / S.v.s, py = (tapInfo.y - S.v.y) / S.v.s, hit = imageAt(px, py);
-      if (hit && hit.tool === 'text') { lastTap = null; tapInfo = null; editText(hit); return; }
+      // Antippen gibt ein Bild oder Textfeld zum Verschieben frei (Rahmen); ein Textfeld, das schon frei ist, öffnet sich zum Bearbeiten
+      const px = (tapInfo.x - S.v.x) / S.v.s, py = (tapInfo.y - S.v.y) / S.v.s, box = sel ? selBox() : null;
+      if (box && Math.hypot(px - box[2], py - box[1]) <= 30 / S.v.s) { lastTap = null; tapInfo = null; deleteSel(); return; }
+      const hit = imageAt(px, py, true);
+      if (hit) {
+        const ids = imageGroup(hit), already = sel && ids.every(id => sel.ids.includes(id));
+        lastTap = null; tapInfo = null;
+        if (already && hit.tool === 'text' && sel.ids.length === 1) editText(hit);
+        else { sel = { ids }; requestLive(); }
+        return;
+      }
+      if (sel && !(box && px >= box[0] && px <= box[2] && py >= box[1] && py <= box[3])) { sel = null; requestLive(); }
       if (lastTap && now - lastTap.t < 340 && Math.hypot(tapInfo.x - lastTap.x, tapInfo.y - lastTap.y) < 44) { lastTap = null; toggleFit(); }
       else lastTap = { t: now, x: tapInfo.x, y: tapInfo.y };
     }
@@ -1599,7 +1609,7 @@ async function insertImage(a) {
   setTool('select'); sel = { ids: [s.id] };
   await loadAssets([asset.id]);
   renderBg(); requestLive();
-  toast('Bild eingefügt. Mit Finger oder Stift ziehen verschiebt es, der blaue Punkt skaliert, der rote löscht.');
+  toast('Bild eingefügt. Ziehen verschiebt es, der blaue Punkt skaliert, der rote löscht. Später erst antippen, dann ziehen.');
 }
 
 async function insertText() {
@@ -1618,7 +1628,7 @@ async function insertText() {
   await save('strokes', s); touchMeta();
   setTool('select'); sel = { ids: [s.id] };
   renderBg(); requestLive();
-  toast('Textfeld eingefügt. Ziehen verschiebt es, der blaue Punkt skaliert, Antippen bearbeitet.');
+  toast('Textfeld eingefügt. Ziehen verschiebt es, der blaue Punkt skaliert. Später: einmal antippen gibt es frei, nochmal antippen bearbeitet.');
 }
 async function editText(s) {
   const r = await dialog({ title: 'Textfeld bearbeiten', text: 'Leer lassen, um das Textfeld zu löschen.', fields: [{ id: 'text', label: 'Text', multiline: true, rows: 6, value: s.text }], confirm: 'Übernehmen' });
