@@ -304,7 +304,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       <header class="lib-head">
         <div>
           <h1 class="wordmark">Tabula <em>Notizbücher</em></h1>
-          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 25</span></p>
+          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 26</span></p>
         </div>
         <div class="lib-actions">
           <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
@@ -3268,7 +3268,7 @@ async function startStudy(nbIds, cram, back, onlyIds) {
   q.sort((a, b) => (a.box || 1) - (b.box || 1));   // unsichere Karten zuerst, innerhalb eines Fachs gemischt
   flushMeta();
   const title = nbIds.length === 1 ? (nbs.find(n => n.id === nbIds[0]) || {}).title : 'Alle Hefte';
-  ST = { q, i: 0, flipped: false, cram, back, wrong: new Set(), right: 0, missed: 0, total: q.length, title, nbIds,
+  ST = { q, i: 0, flipped: false, seen: false, cram, back, wrong: new Set(), right: 0, missed: 0, total: q.length, title, nbIds,
          ret: back === 'editor' && S.nb ? { nb: S.nb.id, page: S.page && S.page.id } : null };
   S.view = 'study'; setView('study');
   $('studyDone').hidden = true; $('studyBody').hidden = false;
@@ -3297,9 +3297,9 @@ async function renderStudy() {
   $('kSide').textContent = ST.flipped ? 'Antwort' : 'Frage';
   $('kBox').textContent = `Fach ${c.box || 1}`;
   card.classList.toggle('back', ST.flipped);
-  card.setAttribute('aria-label', ST.flipped ? 'Antwort' : 'Frage, tippen zum Umdrehen');
-  $('studyHint').textContent = ST.flipped ? (ST.cram ? 'Üben verändert die Fächer nicht.' : '') : 'Tippe auf die Karte, um die Antwort zu sehen.';
-  $('studyActions').hidden = !ST.flipped;
+  card.setAttribute('aria-label', ST.flipped ? 'Antwort, tippen für die Frage' : 'Frage, tippen zum Umdrehen');
+  $('studyHint').textContent = ST.flipped ? (ST.cram ? 'Üben verändert die Fächer nicht. Tippen zeigt wieder die Frage.' : 'Tippen zeigt wieder die Frage.') : ST.seen ? 'Tippe erneut für die Antwort.' : 'Tippe auf die Karte, um die Antwort zu sehen.';
+  $('studyActions').hidden = !ST.seen;
   $('studySrc').hidden = !c.src;
   const txt = $('kText'), cv = $('kCanvas');
   if (face && face.text != null) { txt.hidden = false; txt.textContent = face.text; cv.hidden = true; fitCardText(txt, face.text); }
@@ -3313,16 +3313,17 @@ function fitCardText(el, text) {
   for (let i = 0; i < 40 && el.scrollHeight > el.clientHeight + 1 && size > 11; i++) { size *= 0.93; el.style.fontSize = size + 'px'; }
   if (el.scrollHeight > el.clientHeight + 1) el.style.alignItems = 'flex-start';   // passt trotzdem nicht: oben anfangen und scrollen
 }
-function flipCard() {
-  if (!ST || ST.flipped) return;
+function flipCard() {   // dreht in beide Richtungen; nach dem ersten Umdrehen bleiben die Bewertungsknöpfe da
+  if (!ST || ST.i >= ST.q.length) return;
+  const to = !ST.flipped;
   const card = $('kcard');
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduce) { ST.flipped = true; renderStudy(); return; }
+  if (reduce) { ST.flipped = to; if (to) ST.seen = true; renderStudy(); return; }
   card.classList.add('turn');
-  setTimeout(() => { ST.flipped = true; renderStudy().then(() => card.classList.remove('turn')); }, 200);
+  setTimeout(() => { ST.flipped = to; if (to) ST.seen = true; renderStudy().then(() => card.classList.remove('turn')); }, 200);
 }
 async function answer(ok) {
-  if (!ST || !ST.flipped) return;
+  if (!ST || !ST.seen) return;
   const c = ST.q[ST.i], now = Date.now();
   if (!ST.cram) {
     if (ok) {
@@ -3333,7 +3334,7 @@ async function answer(ok) {
     await save('cards', c);
   }
   if (ok) ST.right++; else { ST.missed++; ST.wrong.add(c.id); ST.q.push(c); }   // falsche Karten kommen am Ende noch einmal
-  ST.i++; ST.flipped = false;
+  ST.i++; ST.flipped = false; ST.seen = false;
   renderStudy();
 }
 async function finishStudy() {
@@ -3360,9 +3361,9 @@ function studyKey(e) {
   if (!ST) return;
   if (e.key === 'Escape') { exitStudy(); return; }
   if (!$('studyDone').hidden) { if (e.key === 'Enter') exitStudy(); return; }
-  if (!ST.flipped && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); flipCard(); }
-  else if (ST.flipped && (e.key === '1' || e.key === 'ArrowLeft')) answer(false);
-  else if (ST.flipped && (e.key === '2' || e.key === 'ArrowRight' || e.key === ' ')) { e.preventDefault(); answer(true); }
+  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flipCard(); }
+  else if (ST.seen && (e.key === '1' || e.key === 'ArrowLeft')) answer(false);
+  else if (ST.seen && (e.key === '2' || e.key === 'ArrowRight')) answer(true);
 }
 $('kcard').onclick = flipCard;
 $('kWrong').onclick = () => answer(false);
@@ -3384,7 +3385,7 @@ $('studyMore').onclick = async () => {
   } else if (a === 'del') {
     if (!(await deleteCard(c))) return;
     ST.q = ST.q.filter((x, j) => j < ST.i || x.id !== c.id);   // auch spätere Wiederholungen dieser Karte entfernen
-    ST.flipped = false; renderStudy();
+    ST.flipped = false; ST.seen = false; renderStudy();
   }
 };
 $('studySrc').onclick = () => { const c = ST && ST.q[ST.i]; if (c) { ST = null; openSource(c); } };
