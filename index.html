@@ -246,6 +246,9 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
   background-size:100% 2px,100% 15.5%,100% 100%;background-position:0 15.5%,0 0,0 0;background-repeat:no-repeat,no-repeat,no-repeat;
   box-shadow:0 1px 2px var(--shadow),0 14px 34px var(--shadow);transition:transform .22s ease}
 .kcard.turn{transform:rotateX(90deg)}
+.kcard{touch-action:pan-y}
+.kcard.swipe-r{box-shadow:0 0 0 4px var(--good),0 14px 34px var(--shadow)}
+.kcard.swipe-l{box-shadow:0 0 0 4px var(--danger),0 14px 34px var(--shadow)}
 .kcard-side,.kcard-box{position:absolute;top:4.5%;font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8a93a6}
 .kcard-side{left:4%}.kcard-box{right:4%}
 .kcard.back .kcard-side{color:var(--kred)}
@@ -304,7 +307,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       <header class="lib-head">
         <div>
           <h1 class="wordmark">Tabula <em>Notizbücher</em></h1>
-          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 26</span></p>
+          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 27</span></p>
         </div>
         <div class="lib-actions">
           <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
@@ -3298,7 +3301,7 @@ async function renderStudy() {
   $('kBox').textContent = `Fach ${c.box || 1}`;
   card.classList.toggle('back', ST.flipped);
   card.setAttribute('aria-label', ST.flipped ? 'Antwort, tippen für die Frage' : 'Frage, tippen zum Umdrehen');
-  $('studyHint').textContent = ST.flipped ? (ST.cram ? 'Üben verändert die Fächer nicht. Tippen zeigt wieder die Frage.' : 'Tippen zeigt wieder die Frage.') : ST.seen ? 'Tippe erneut für die Antwort.' : 'Tippe auf die Karte, um die Antwort zu sehen.';
+  $('studyHint').textContent = ST.flipped ? (ST.cram ? 'Üben verändert die Fächer nicht. Wischen: rechts gewusst, links nicht.' : 'Wischen: rechts gewusst, links nicht gewusst. Tippen zeigt die Frage.') : ST.seen ? 'Tippe erneut für die Antwort.' : 'Tippe auf die Karte, um die Antwort zu sehen.';
   $('studyActions').hidden = !ST.seen;
   $('studySrc').hidden = !c.src;
   const txt = $('kText'), cv = $('kCanvas');
@@ -3365,7 +3368,39 @@ function studyKey(e) {
   else if (ST.seen && (e.key === '1' || e.key === 'ArrowLeft')) answer(false);
   else if (ST.seen && (e.key === '2' || e.key === 'ArrowRight')) answer(true);
 }
-$('kcard').onclick = flipCard;
+/* Wischen: nach rechts gewusst, nach links nicht gewusst (sobald die Antwort einmal zu sehen war); Tippen dreht um */
+let swipe = null, swipeBlockClick = 0;
+{
+  const card = $('kcard');
+  const reset = () => { card.style.transition = ''; card.style.transform = ''; card.classList.remove('swipe-r', 'swipe-l'); };
+  card.addEventListener('pointerdown', e => { if (!ST) return; swipe = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, on: false }; });
+  card.addEventListener('pointermove', e => {
+    if (!swipe || e.pointerId !== swipe.id) return;
+    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+    if (!swipe.on) { if (Math.abs(dx) < 12 || Math.abs(dx) < Math.abs(dy)) return; swipe.on = true; try { card.setPointerCapture(e.pointerId); } catch (_) {} }
+    swipe.dx = dx; card.style.transition = 'none';
+    card.style.transform = `translateX(${dx}px) rotate(${dx / 30}deg)`;
+    const far = Math.abs(dx) > 90 && ST.seen;
+    card.classList.toggle('swipe-r', far && dx > 0); card.classList.toggle('swipe-l', far && dx < 0);
+  });
+  const end = e => {
+    if (!swipe || e.pointerId !== swipe.id) return;
+    const { dx, on } = swipe; swipe = null;
+    if (!on) return;
+    swipeBlockClick = performance.now();
+    if (Math.abs(dx) > 90 && ST && ST.seen) {
+      card.style.transition = 'transform .18s ease-out';
+      card.style.transform = `translateX(${dx > 0 ? 1 : -1}${Math.round(window.innerWidth)}px) rotate(${dx > 0 ? 12 : -12}deg)`;
+      setTimeout(() => { reset(); answer(dx > 0); }, 180);
+    } else {
+      card.style.transition = 'transform .18s ease-out'; card.style.transform = ''; card.classList.remove('swipe-r', 'swipe-l');
+      setTimeout(reset, 200);
+      if (Math.abs(dx) > 90 && ST && !ST.seen) $('studyHint').textContent = 'Erst antippen und die Antwort ansehen, dann wischen.';
+    }
+  };
+  card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end);
+  card.onclick = () => { if (performance.now() - swipeBlockClick < 400) return; flipCard(); };
+}
 $('kWrong').onclick = () => answer(false);
 $('kRight').onclick = () => answer(true);
 $('studyBack').onclick = exitStudy;
