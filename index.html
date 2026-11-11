@@ -307,7 +307,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       <header class="lib-head">
         <div>
           <h1 class="wordmark">Tabula <em>Notizbücher</em></h1>
-          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 28</span></p>
+          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 29</span></p>
         </div>
         <div class="lib-actions">
           <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
@@ -438,6 +438,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
     <hr>
     <button class="menu-item" id="renamePageBtn" type="button" role="menuitem"><svg class="i"><use href="#i-pen"/></svg>Seite benennen</button>
     <button class="menu-item" id="sectionsBtn" type="button" role="menuitem"><svg class="i"><use href="#i-cover"/></svg>Themen und Seiten</button>
+    <button class="menu-item" id="spreadBtn" type="button" role="menuitem" hidden><svg class="i"><use href="#i-pdf"/></svg><span id="spreadLabel">Als Doppelseiten</span></button>
     <button class="menu-item" id="fitBtn" type="button" role="menuitem"><svg class="i"><use href="#i-fit"/></svg><span id="fitLabel">Ganze Seite zeigen</span></button>
     <button class="menu-item" id="pngBtn" type="button" role="menuitem"><svg class="i"><use href="#i-image"/></svg>Seite als Bild sichern</button>
     <button class="menu-item" id="studyNbBtn" type="button" role="menuitem"><svg class="i"><use href="#i-cards"/></svg><span id="studyNbLabel">Karten dieses Hefts lernen</span></button>
@@ -1185,6 +1186,11 @@ function imageAt(x, y, withBg) {
 /* Ein PDF liegt als mehrere Streifen auf der Seite: die gehören zusammen und bewegen sich gemeinsam */
 function imageGroup(img) {
   if (!img.bg) return [img.id];
+  const fr = S.page && S.page.frames;
+  if (fr && fr.length > 1) {
+    const f = frameOf(fr, img.x + img.w / 2, img.y + img.h / 2);
+    return S.strokes.filter(s => alive(s) && s.tool === 'image' && s.bg && frameOf(fr, s.x + s.w / 2, s.y + s.h / 2) === f).map(s => s.id);
+  }
   return S.strokes.filter(s => alive(s) && s.tool === 'image' && s.bg && s.x === img.x && s.w === img.w).map(s => s.id);
 }
 function inPoly(x, y, p) {
@@ -1691,6 +1697,9 @@ FORMATS.forEach(f => {
 function openMenu() {
   markTemplate(); updateStudyLabel();
   $('fitLabel').textContent = S.fitMode === 'width' ? 'Ganze Seite zeigen' : 'Seitenbreite zeigen';
+  const canSpread = !!(S.page && S.page.sheet && S.page.frames && S.page.frames.length > 1);
+  $('spreadBtn').hidden = !canSpread;
+  if (canSpread) $('spreadLabel').textContent = S.page.spread ? 'PDF-Seiten untereinander' : 'PDF als Doppelseiten';
   const r = $('menuBtn').getBoundingClientRect();
   menu.hidden = false;
   const mw = menu.offsetWidth;
@@ -1705,6 +1714,7 @@ document.addEventListener('pointerdown', e => {
   if (!menu.hidden && !menu.contains(e.target) && !$('menuBtn').contains(e.target)) closeMenu();
 }, true);
 $('fitBtn').onclick = () => { closeMenu(); toggleFit(); };
+$('spreadBtn').onclick = () => { closeMenu(); setSpread(!(S.page && S.page.spread)); };
 $('renamePageBtn').onclick = () => { closeMenu(); renamePage(); };
 $('sectionsBtn').onclick = () => { closeMenu(); pageList(); };
 $('pageLabel').onclick = () => { closeMenu(); pageList(); };
@@ -2485,6 +2495,52 @@ async function pdfToPages(lib, file, notebookId) {
 }
 /* Im Heft: alle Seiten einer PDF-Datei untereinander auf ein Blatt (höchstens 15 pro Blatt, sonst wird das Blatt zu lang für den PDF-Export) */
 const SHEET_MAX = 15, SHEET_GAP = 80, SHEET_PAD = 60;
+/* Lage der Seiten auf einem PDF-Blatt: untereinander oder als Doppelseiten (links, rechts, dann die nächste Reihe) */
+function sheetLayout(sizes, spread) {
+  const wmax = Math.max(...sizes.map(s => s[0])), frames = [];
+  if (!spread) {
+    const w = wmax + 2 * SHEET_PAD; let y = SHEET_PAD;
+    for (const [fw, fh] of sizes) { frames.push([Math.round((w - fw) / 2), y, fw, fh]); y += fh + SHEET_GAP; }
+    return { w, h: y - SHEET_GAP + SHEET_PAD, frames };
+  }
+  const w = 2 * wmax + SHEET_GAP + 2 * SHEET_PAD; let y = SHEET_PAD;
+  for (let k = 0; k < sizes.length; k += 2) {
+    const row = sizes.slice(k, k + 2), rh = Math.max(...row.map(s => s[1]));
+    row.forEach(([fw, fh], c) => frames.push([Math.round(SHEET_PAD + c * (wmax + SHEET_GAP) + (wmax - fw) / 2), y, fw, fh]));
+    y += rh + SHEET_GAP;
+  }
+  return { w, h: y - SHEET_GAP + SHEET_PAD, frames };
+}
+/* Vorhandenes Blatt umlegen: Bilder und alles, was darauf geschrieben ist, wandern mit ihrer Seite mit */
+function frameOf(frames, cx, cy) {
+  let best = 0, bd = Infinity;
+  frames.forEach(([x, y, w, h], i) => {
+    const dx = Math.max(x - cx, 0, cx - x - w), dy = Math.max(y - cy, 0, cy - y - h), d = dx * dx + dy * dy;
+    if (d < bd) { bd = d; best = i; }
+  });
+  return best;
+}
+async function setSpread(on) {
+  const p = S.page; if (!p || !p.sheet || !p.frames || p.frames.length < 2) return;
+  flushMeta();
+  const old = p.frames, L = sheetLayout(old.map(f => [f[2], f[3]]), on), now = Date.now(), changed = [];
+  for (const s of S.strokes) {
+    if (s.deleted) continue;
+    const b = itemBox(s), i = frameOf(old, (b[0] + b[2]) / 2, (b[1] + b[3]) / 2);
+    const dx = L.frames[i][0] - old[i][0], dy = L.frames[i][1] - old[i][1];
+    if (!dx && !dy) continue;
+    if (s.tool === 'image' || s.tool === 'text') { s.x = r1(s.x + dx); s.y = r1(s.y + dy); }
+    else { const q = s.pts.slice(); for (let j = 0; j < q.length; j += 3) { q[j] = r1(q[j] + dx); q[j + 1] = r1(q[j + 1] + dy); } s.pts = q; }
+    s.u = now; changed.push(s);
+  }
+  if (changed.length) await save('strokes', changed);
+  Object.assign(p, { w: L.w, h: L.h, frames: L.frames, spread: on ? 1 : 0, u: now });
+  S.nb.u = now;
+  await save('pages', p); await save('notebooks', S.nb);
+  S.hist.delete(p.id);
+  await gotoPage(S.pi);
+  toast(on ? 'Als Doppelseiten angeordnet' : 'Seiten untereinander angeordnet');
+}
 async function pdfToSheets(lib, file, notebookId, sectionId) {
   const doc = await openPdf(lib, file); if (!doc) return [];
   const name = file.name.replace(/\.pdf$/i, '') || 'PDF', parts = [];
@@ -2495,18 +2551,13 @@ async function pdfToSheets(lib, file, notebookId, sectionId) {
       toast(`${name}: Seite ${i} von ${total}`);
       rendered.push(await renderPdfPage(doc, i));
     }
-    const w = Math.max(...rendered.map(r => r.w)) + 2 * SHEET_PAD;
-    const h = rendered.reduce((acc, r) => acc + r.h, 0) + SHEET_GAP * (rendered.length - 1) + 2 * SHEET_PAD;
+    const spread = rendered.length > 1;   // Standard: Doppelseiten, umschaltbar im Seitenmenü
+    const L = sheetLayout(rendered.map(r => [r.w, r.h]), spread);
     const now = Date.now() + c;
-    const page = { id: uid(), notebookId, sectionId: sectionId || null, template: 'blank', format: 'custom', w, h, t: now, u: now,
-                   title: chunks > 1 ? `${name} (${c + 1}/${chunks})` : name, sheet: 1 };
-    let y = SHEET_PAD; const imgs = []; page.frames = [];
-    rendered.forEach((r, k) => {
-      const x = Math.round((w - r.w) / 2);
-      imgs.push(...tileStrokes(r, page.id, x, y, now + k * 100));
-      page.frames.push([x, y, r.w, r.h]);
-      y += r.h + SHEET_GAP;
-    });
+    const page = { id: uid(), notebookId, sectionId: sectionId || null, template: 'blank', format: 'custom', w: L.w, h: L.h, t: now, u: now,
+                   title: chunks > 1 ? `${name} (${c + 1}/${chunks})` : name, sheet: 1, spread: spread ? 1 : 0, frames: L.frames };
+    const imgs = [];
+    rendered.forEach((r, k) => { const [x, y] = L.frames[k]; imgs.push(...tileStrokes(r, page.id, x, y, now + k * 100)); });
     await save('pages', page); await save('strokes', imgs);
     parts.push(page);
   }
@@ -3567,7 +3618,7 @@ async function boot() {
     });
   }
 }
-window.__tabula = { S, Store, autosaveTick, gitSync, gitIdle: () => !syncing && !syncAgain, snapTick, DIRTY, pageFile, parsePage, indexFile, blobSha, restoreTo }; // für Tests
+window.__tabula = { S, Store, autosaveTick, gitSync, gitIdle: () => !syncing && !syncAgain, snapTick, DIRTY, pageFile, parsePage, indexFile, blobSha, restoreTo, sheetLayout, setSpread, openNotebook, save, uid }; // für Tests
 boot();
 })();
 </script>
