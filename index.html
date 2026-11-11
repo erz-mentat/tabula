@@ -307,7 +307,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       <header class="lib-head">
         <div>
           <h1 class="wordmark">Tabula <em>Notizbücher</em></h1>
-          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 27</span></p>
+          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 28</span></p>
         </div>
         <div class="lib-actions">
           <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
@@ -498,12 +498,12 @@ const TPL_SVG = {
 };
 const sheetHtml = id => TPL_SVG[id] ? `<span class="sheet svg">${TPL_SVG[id]}</span>` : `<span class="sheet ${id}"></span>`;
 const TOOLS = {
-  pen:    { colors: ['#1b1f27', '#2347c5', '#c22f2b', '#1d7a48'], names: ['Schwarz', 'Königsblau', 'Rot', 'Grün'], sizes: [5, 9, 15], dots: [5, 8, 12] },
+  pen:    { colors: ['#1b1f27', '#2347c5', '#e71225', '#1d7a48', '#00a0d7', '#f6630d', '#5b2d90', '#ff0066'], names: ['Schwarz', 'Königsblau', 'Rot', 'Grün', 'Hellblau', 'Orange', 'Lila', 'Pink'], sizes: [2.6, 3.8, 5, 9], dots: [3, 5, 7, 11] },
   marker: { colors: ['#ffd23a', '#7fe08b', '#ff95c9', '#83ccff'], names: ['Gelb', 'Grün', 'Pink', 'Blau'],      sizes: [30, 44, 62], dots: [9, 13, 18] },
   eraser: { sizes: [30, 70, 140], dots: [8, 13, 19] },
   select: { sizes: [], dots: [] }
 };
-const SIZE_NAMES = ['Fein', 'Mittel', 'Dick'];
+const SIZE_NAMES = ['Extrafein', 'Fein', 'Mittel', 'Dick'];
 const MARKER_ALPHA = 0.42;
 const EMBEDDED = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
 
@@ -1528,8 +1528,9 @@ function renderToolbar() {
   const sz = $('sizes'); sz.textContent = ''; sz.hidden = !conf.sizes.length;
   conf.sizes.forEach((v, i) => {
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'size'; b.title = SIZE_NAMES[i];
-    b.setAttribute('aria-label', SIZE_NAMES[i]); b.setAttribute('aria-pressed', String(i === sel.size));
+    const nm = SIZE_NAMES.slice(SIZE_NAMES.length - conf.sizes.length)[i];
+    b.type = 'button'; b.className = 'size'; b.title = nm;
+    b.setAttribute('aria-label', nm); b.setAttribute('aria-pressed', String(i === sel.size));
     const d = document.createElement('span');
     d.className = 'dot' + (S.tool === 'eraser' ? ' ring' : '');
     d.style.setProperty('--d', conf.dots[i] + 'px');
