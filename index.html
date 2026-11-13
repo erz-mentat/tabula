@@ -307,7 +307,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       <header class="lib-head">
         <div>
           <h1 class="wordmark">Tabula <em>Notizbücher</em></h1>
-          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 29</span></p>
+          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 30</span></p>
         </div>
         <div class="lib-actions">
           <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
@@ -817,8 +817,8 @@ function assetImg(id, onReady) {
   if (!c) {
     c = { img: new Image(), ready: false, waiters: [] };
     imgCache.set(id, c);
-    Store.get('assets', id).then(a => {
-      if (!a) return;
+    Store.get('assets', id).then(a => a || fetchRemoteAsset(id)).then(a => {
+      if (!a) { setTimeout(() => { if (!c.ready) imgCache.delete(id); }, 20000); return; }
       c.img.onload = () => { c.ready = true; c.waiters.splice(0).forEach(f => f()); };
       c.img.src = a.data;
     }).catch(() => {});
@@ -828,7 +828,7 @@ function assetImg(id, onReady) {
 }
 function loadAssets(ids) {
   return Promise.all([...new Set(ids.filter(Boolean))].map(id => new Promise(res => {
-    const c = assetImg(id, res); if (c.ready) res(); setTimeout(res, 6000);
+    const c = assetImg(id, res); if (c.ready) res(); setTimeout(res, 8000);
   })));
 }
 const imageIds = strokes => strokes.filter(s => s.tool === 'image' && !s.deleted).map(s => s.asset);
@@ -2868,58 +2868,84 @@ function b64(str) {
 }
 async function gitMeta() { return (await Store.get('meta', 'git')) || { id: 'git', head: null, treeSha: null, tree: {} }; }
 
-/* Fremde Änderungen holen und einmischen */
-async function pullChanges(remote, known) {
+/* Fremde Änderungen holen und einmischen.
+   Robust für das erste Laden auf einem neuen Gerät: Karteikarten zuerst, jede Datei einzeln (ein Fehler
+   hält den Rest nicht auf), Fortschritt wird zwischengespeichert, Bilder werden erst geholt, wenn sie
+   gebraucht werden. Was nicht geklappt hat, steht in meta.retry und wird beim nächsten Mal nachgeholt. */
+async function pullChanges(remote, known, meta) {
   const changed = Object.keys(remote).filter(p => remote[p] !== known[p]);
-  if (!changed.length) return { total: 0, legacy: false };
-  let total = 0, legacy = false, n = 0;
-  const order = p => p === 'index.json' ? 0 : p === 'tabula.json' ? 1 : p.startsWith('pages/') ? 2 : p.startsWith('cards/') ? 3 : p.startsWith('reviews/') ? 4 : 5;
+  if (!changed.length) return { total: 0, legacy: false, failed: [] };
+  let total = 0, legacy = false, n = 0, stop = false;
+  const failed = [];
+  const order = p => p === 'index.json' ? 0 : p === 'tabula.json' ? 1 : p.startsWith('cards/') ? 2 : p.startsWith('reviews/') ? 3 : p.startsWith('pages/') ? 4 : 5;
   changed.sort((a, b) => order(a) - order(b));
-  const localAssets = new Set(await Store.keys('assets'));
+  meta.done = meta.done || {};
   for (const path of changed) {
+    if (stop) { failed.push(path); continue; }
     gitProgress = `lädt ${++n} von ${changed.length}`;
-    if (path === 'index.json') {
-      const d = JSON.parse(await (await ghRaw(remote[path])).text());
-      total += (await mergeData({ notebooks: d.notebooks, pages: d.pages }, { fromGit: true })).total;
-    } else if (path === 'tabula.json') {
-      // altes Format: einlesen und später im neuen Format ablegen
-      const d = JSON.parse(await (await ghRaw(remote[path])).text());
-      total += (await mergeData({ notebooks: d.notebooks, pages: d.pages, strokes: d.strokes }, { fromGit: true })).total;
-      legacy = true;
-    } else if (/^cards\/[^/]+\.jsonl$/.test(path)) {
-      total += await mergeCardFiles(path.slice(6, -6), await (await ghRaw(remote[path])).text(), null);
-    } else if (/^reviews\/[^/]+\.json$/.test(path)) {
-      total += await mergeCardFiles(path.slice(8, -5), null, await (await ghRaw(remote[path])).text());
-    } else if (/^pages\/[^/]+\.jsonl$/.test(path)) {
-      const pid = path.slice(6, -6);
-      const strokes = parsePage(await (await ghRaw(remote[path])).text(), pid);
-      total += (await mergeData({ strokes }, { fromGit: true })).total;
-    } else {
-      const m = /^assets\/([^/]+)\.(png|jpe?g)$/.exec(path);
-      if (!m || localAssets.has(m[1])) continue;
-      const blob = await (await ghRaw(remote[path])).blob();
-      const url = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
-      const data = url.replace(/^data:[^;]*;/, `data:image/${m[2] === 'png' ? 'png' : 'jpeg'};`);
-      await Store.put('assets', { id: m[1], data, w: 0, h: 0, t: Date.now(), u: Date.now() });
-      total++;
+    if (n % 10 === 0 && S.view === 'library') renderLibStatus();
+    try {
+      if (path === 'index.json') {
+        const d = JSON.parse(await (await ghRaw(remote[path])).text());
+        total += (await mergeData({ notebooks: d.notebooks, pages: d.pages }, { fromGit: true })).total;
+      } else if (path === 'tabula.json') {
+        const d = JSON.parse(await (await ghRaw(remote[path])).text());
+        total += (await mergeData({ notebooks: d.notebooks, pages: d.pages, strokes: d.strokes }, { fromGit: true })).total;
+        legacy = true;
+      } else if (/^cards\/[^/]+\.jsonl$/.test(path)) {
+        total += await mergeCardFiles(path.slice(6, -6), await (await ghRaw(remote[path])).text(), null);
+      } else if (/^reviews\/[^/]+\.json$/.test(path)) {
+        total += await mergeCardFiles(path.slice(8, -5), null, await (await ghRaw(remote[path])).text());
+      } else if (/^pages\/[^/]+\.jsonl$/.test(path)) {
+        const pid = path.slice(6, -6);
+        const strokes = parsePage(await (await ghRaw(remote[path])).text(), pid);
+        total += (await mergeData({ strokes }, { fromGit: true })).total;
+      }
+      // Bilder (assets/…): nichts laden, assetImg holt sie beim ersten Anzeigen
+      meta.done[path] = remote[path];
+    } catch (e) {
+      console.error('Abgleich', path, e);
+      failed.push(path);
+      if (/bremst|ungültig|Schreibrechte|nicht gefunden/.test(e.message || '') || navigator.onLine === false) stop = true;
     }
+    if (n % 20 === 0) await Store.put('meta', meta);
   }
-  return { total, legacy };
+  return { total, legacy, failed };
+}
+/* Bild nachladen, das auf diesem Gerät noch fehlt */
+const assetFetching = new Map();
+function fetchRemoteAsset(id) {
+  if (assetFetching.has(id)) return assetFetching.get(id);
+  const p = (async () => {
+    if (!syncCfg() || EMBEDDED) return null;
+    const meta = await gitMeta();
+    const path = ['jpg', 'png', 'jpeg'].map(e => `assets/${id}.${e}`).find(q => meta.tree[q]);
+    if (!path) return null;
+    const blob = await (await ghRaw(meta.tree[path])).blob();
+    const url = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+    const data = url.replace(/^data:[^;]*;/, `data:image/${path.endsWith('png') ? 'png' : 'jpeg'};`);
+    const a = { id, data, w: 0, h: 0, t: Date.now(), u: Date.now() };
+    await Store.put('assets', a);
+    return a;
+  })().catch(e => { console.error('Bild', id, e); return null; }).finally(() => setTimeout(() => assetFetching.delete(id), 30000));
+  assetFetching.set(id, p);
+  return p;
 }
 
 /* Was muss hoch? Nur Dateien, deren Inhalt sich vom Stand auf GitHub unterscheidet. */
 async function collectWork(meta, full) {
-  const t0 = Date.now(), files = [], pids = [];
+  const t0 = Date.now(), files = [], pids = [], skip = meta.retry || {};
   const pageIds = full ? (await Store.getAll('pages')).map(p => p.id) : Object.keys(DIRTY.git.p);
   for (const pid of pageIds) {
     const path = `pages/${pid}.jsonl`;
+    if (skip[path]) continue;   // noch nicht vollständig geladen: nicht überschreiben
     const strokes = await Store.getAll('strokes', 'pageId', pid);
     pids.push(pid);
     if (!strokes.length && !meta.tree[path]) continue;
     const content = pageFile(strokes), bytes = utf8(content), sha = await blobSha(bytes);
     if (sha !== meta.tree[path]) files.push({ path, content, sha, size: bytes.length });
   }
-  const idx = full || !!DIRTY.git.i;
+  const idx = (full || !!DIRTY.git.i) && !skip['index.json'];
   if (idx) {
     const [notebooks, pages] = await Promise.all([Store.getAll('notebooks'), Store.getAll('pages')]);
     const content = indexFile(notebooks, pages), bytes = utf8(content), sha = await blobSha(bytes);
@@ -2931,6 +2957,7 @@ async function collectWork(meta, full) {
   for (const nb of nbIds) {
     cids.push(nb);
     const cards = await Store.getAll('cards', 'notebookId', nb), pc = `cards/${nb}.jsonl`, pr = `reviews/${nb}.json`;
+    if (skip[pc] || skip[pr]) continue;
     if (!cards.length && !meta.tree[pc]) continue;
     for (const [path, content] of [[pc, cardsFile(cards)], [pr, reviewFile(cards)]]) {
       const bytes = utf8(content), sha = await blobSha(bytes);
@@ -2954,17 +2981,22 @@ async function syncOnce(opts) {
   if (!r.ok) throw await ghErr(r);
   const head = (await r.json()).object.sha;
   let pulled = 0;
-  if (head !== meta.head) {
+  const retry = meta.retry || {};
+  if (head !== meta.head || Object.keys(retry).length) {
     const c = await ghJSON(`/git/commits/${head}`);
     const tj = await ghJSON(`/git/trees/${c.tree.sha}?recursive=1`);
     if (tj.truncated) throw new Error('zu viele Dateien für einen Abgleich');
     const remote = {};
     for (const e of tj.tree) if (e.type === 'blob') remote[e.path] = e.sha;
-    const res = await pullChanges(remote, meta.tree);
+    const known = { ...meta.tree, ...(meta.done || {}) };
+    for (const p of Object.keys(retry)) delete known[p];
+    const res = await pullChanges(remote, known, meta);
     pulled = res.total;
     if (res.legacy) lsSet('tabula.gitFullNeeded', 1);
-    meta.head = head; meta.treeSha = c.tree.sha; meta.tree = remote;
+    meta.head = head; meta.treeSha = c.tree.sha; meta.tree = remote; meta.done = {};
+    meta.retry = Object.fromEntries(res.failed.map(p => [p, remote[p]]));
     await Store.put('meta', meta);
+    if (res.failed.length) lsSet('tabula.gitError', `${res.failed.length} Dateien noch nicht geladen, wird nachgeholt`);
   }
   if (!opts.push) return { ok: true, pulled };
 
@@ -2975,7 +3007,7 @@ async function syncOnce(opts) {
     for (const nb of work.cids) if (DIRTY.git.c[nb] && DIRTY.git.c[nb] <= work.t0) delete DIRTY.git.c[nb];
     persistDirty();
     if (full) { lsSet('tabula.gitFull', Date.now()); lsSet('tabula.gitFullNeeded', 0); }
-    lsSet('tabula.gitPush', Date.now()); lsSet('tabula.gitError', '');
+    lsSet('tabula.gitPush', Date.now()); lsSet('tabula.gitError', Object.keys(meta.retry || {}).length ? `${Object.keys(meta.retry).length} Dateien noch nicht geladen, wird nachgeholt` : '');
   };
   if (!work.files.length && !work.assets.length && !work.legacy) { done(); return { ok: true, pulled, commits: 0 }; }
 
@@ -3606,6 +3638,16 @@ async function boot() {
   if (!EMBEDDED && 'serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) {
     // Updates zuverlässig holen: beim Zurückkehren in die App nachsehen und eine neue Version sofort übernehmen
     const hadCtrl = !!navigator.serviceWorker.controller;
+    // Notbremse für hängende Updates (v. a. iOS-Homescreen): Stimmt die Version auf dem Server nicht, Zwischenspeicher leeren und neu laden.
+    fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(async j => {
+      if (!j || String(j.v) === '30') return;
+      if (sessionStorage.getItem('tabula.forceUpd') === String(j.v)) return;
+      sessionStorage.setItem('tabula.forceUpd', String(j.v));
+      flushMeta(); persistDirty();
+      try { for (const k of await caches.keys()) await caches.delete(k); } catch (e) {}
+      try { for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); } catch (e) {}
+      location.reload();
+    }).catch(() => {});
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
       reg.update().catch(() => {});
       document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });

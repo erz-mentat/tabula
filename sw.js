@@ -1,5 +1,5 @@
 // Tabula Service Worker: startet sofort aus dem Zwischenspeicher und holt Updates im Hintergrund.
-const CACHE = 'tabula-v29';
+const CACHE = 'tabula-v30';
 const ASSETS = ['./', './index.html', './icon.png', './manifest.webmanifest'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
@@ -11,7 +11,7 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin || new URL(req.url).pathname.endsWith('version.json')) return;
   e.respondWith(caches.open(CACHE).then(async c => {
     let cached = await c.match(req, { ignoreSearch: true });
     if (!cached && req.mode === 'navigate') cached = await c.match('./index.html');
