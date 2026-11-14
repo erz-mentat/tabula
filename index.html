@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Tabula">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#f5eee1">
+<meta name="theme-color" content="#e4d6bf">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
@@ -18,17 +18,17 @@
 /* Layout: Ein Schreibtisch trägt ein A4-Blatt; oben liegt eine schmale Stiftablage als Werkzeugleiste. */
 :root{
   /* Dune: gleiche Palette wie Famulus; das Papier bleibt weiß */
-  --desk:#ece2d0;
-  --chrome:#f5eee1;
-  --line:#dccfb8;
-  --fg:#2a2017;
-  --muted:#7b6b58;
-  --accent:#bf5f2c;
-  --accent-soft:#f0dcc8;
-  --accent-fg:#fffaf2;
-  --danger:#a8392a;
+  --desk:#d9c9ae;
+  --chrome:#e4d6bf;
+  --line:#c9b697;
+  --fg:#22180f;
+  --muted:#6b5a46;
+  --accent:#a64d1e;
+  --accent-soft:#e3c9ad;
+  --accent-fg:#fbf4e8;
+  --danger:#983122;
   --danger-fg:#ffffff;
-  --good:#5d7a3a;
+  --good:#55702f;
   --good-fg:#ffffff;
   --kred:#de5f5a;              /* Kopflinie der Karteikarte */
   --kink:#1b1f27;              /* Schrift auf Papier, in beiden Themen gleich */
@@ -44,15 +44,15 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --desk:#18140f; --chrome:#29221a; --line:#3f3428; --fg:#f1e6d3; --muted:#a99880;
-    --accent:#e08a4f; --accent-soft:#3a2c1f; --accent-fg:#1f1a14; --danger:#f08c78; --danger-fg:#2a0b08; --good:#a3c078; --good-fg:#1a2410;
+    --desk:#0f0c08; --chrome:#1d1711; --line:#342a1f; --fg:#ecdfca; --muted:#9b8970;
+    --accent:#d0773b; --accent-soft:#33261a; --accent-fg:#15110c; --danger:#e57f6b; --danger-fg:#2a0b08; --good:#98b46c; --good-fg:#1a2410;
     --shadow:rgba(0,0,0,.55); --scrim:rgba(0,0,0,.55); --ring:rgba(255,255,255,.38);
     color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --desk:#18140f; --chrome:#29221a; --line:#3f3428; --fg:#f1e6d3; --muted:#a99880;
-  --accent:#e08a4f; --accent-soft:#3a2c1f; --accent-fg:#1f1a14; --danger:#f08c78; --danger-fg:#2a0b08; --good:#a3c078; --good-fg:#1a2410;
+  --desk:#0f0c08; --chrome:#1d1711; --line:#342a1f; --fg:#ecdfca; --muted:#9b8970;
+  --accent:#d0773b; --accent-soft:#33261a; --accent-fg:#15110c; --danger:#e57f6b; --danger-fg:#2a0b08; --good:#98b46c; --good-fg:#1a2410;
   --shadow:rgba(0,0,0,.55); --scrim:rgba(0,0,0,.55); --ring:rgba(255,255,255,.38);
   color-scheme:dark;
 }
@@ -936,7 +936,7 @@ function renderLive() {
     ctx.globalAlpha = 1; ctx.beginPath(); ctx.moveTo(p[0], p[1]);
     for (let i = 2; i < p.length; i += 2) ctx.lineTo(p[i], p[i + 1]);
     ctx.closePath(); ctx.fillStyle = 'rgba(35,71,197,.06)'; ctx.fill();
-    ctx.lineWidth = 1.6 * k; ctx.strokeStyle = '#bf5f2c'; ctx.setLineDash([6 * k, 5 * k]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.lineWidth = 1.6 * k; ctx.strokeStyle = '#a64d1e'; ctx.setLineDash([6 * k, 5 * k]); ctx.stroke(); ctx.setLineDash([]);
   }
   const box = sel && !lasso ? selBox() : null;   // Auswahl per Lasso oder per Fingertipp
   if (box) {   // gewählte Striche blau einfärben, damit klar ist, was die Auswahl enthält
@@ -954,10 +954,10 @@ function renderLive() {
   if (box) {
     const k = 1 / S.v.s, [x0, y0, x1, y1] = box;
     ctx.globalAlpha = 1;
-    ctx.lineWidth = 2 * k; ctx.strokeStyle = '#bf5f2c'; ctx.setLineDash([7 * k, 5 * k]);
+    ctx.lineWidth = 2 * k; ctx.strokeStyle = '#a64d1e'; ctx.setLineDash([7 * k, 5 * k]);
     ctx.strokeRect(x0, y0, x1 - x0, y1 - y0); ctx.setLineDash([]);
     const dot = (cx, cy, fill) => { ctx.beginPath(); ctx.arc(cx, cy, 12 * k, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 2.5 * k; ctx.strokeStyle = '#ffffff'; ctx.stroke(); };
-    dot(x1, y1, '#bf5f2c');
+    dot(x1, y1, '#a64d1e');
     dot(x1, y0, '#c22f2b');
     const d = 4.5 * k; ctx.beginPath();
     ctx.moveTo(x1 - d, y0 - d); ctx.lineTo(x1 + d, y0 + d); ctx.moveTo(x1 + d, y0 - d); ctx.lineTo(x1 - d, y0 + d);
