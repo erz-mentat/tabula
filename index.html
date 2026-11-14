@@ -307,7 +307,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       <header class="lib-head">
         <div>
           <h1 class="wordmark">Tabula <em>Notizbücher</em></h1>
-          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 30</span></p>
+          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 31</span></p>
         </div>
         <div class="lib-actions">
           <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
@@ -2150,6 +2150,13 @@ async function gotoPage(i) {
   const f = fmtOf(page); PW = f.w; PH = f.h;
   fitView(PW > PH ? 'page' : 'width');
   renderPageUI(); renderBg(); clearLive();
+  ensurePageLoaded(page.id).then(async got => {
+    if (!got || token !== S.loadToken || ink || drag) return;
+    const fresh = await Store.getAll('strokes', 'pageId', page.id);
+    if (token !== S.loadToken) return;
+    fresh.sort((a, b) => a.t - b.t);
+    S.strokes = fresh; S.byId = new Map(fresh.map(x => [x.id, x])); S.cache.clear(); renderBg();
+  });
 }
 async function addPage() {
   if (!S.page) return;
@@ -2872,46 +2879,71 @@ async function gitMeta() { return (await Store.get('meta', 'git')) || { id: 'git
    Robust für das erste Laden auf einem neuen Gerät: Karteikarten zuerst, jede Datei einzeln (ein Fehler
    hält den Rest nicht auf), Fortschritt wird zwischengespeichert, Bilder werden erst geholt, wenn sie
    gebraucht werden. Was nicht geklappt hat, steht in meta.retry und wird beim nächsten Mal nachgeholt. */
+let pullMeta = null;   // während eines Abgleichs: das Meta-Objekt, an dem gerade gearbeitet wird
+async function pullOne(path, sha) {
+  if (path === 'index.json') {
+    const d = JSON.parse(await (await ghRaw(sha)).text());
+    return (await mergeData({ notebooks: d.notebooks, pages: d.pages }, { fromGit: true })).total;
+  }
+  if (path === 'tabula.json') {
+    const d = JSON.parse(await (await ghRaw(sha)).text());
+    lsSet('tabula.gitFullNeeded', 1);
+    return (await mergeData({ notebooks: d.notebooks, pages: d.pages, strokes: d.strokes }, { fromGit: true })).total;
+  }
+  if (/^cards\/[^/]+\.jsonl$/.test(path)) return mergeCardFiles(path.slice(6, -6), await (await ghRaw(sha)).text(), null);
+  if (/^reviews\/[^/]+\.json$/.test(path)) return mergeCardFiles(path.slice(8, -5), null, await (await ghRaw(sha)).text());
+  if (/^pages\/[^/]+\.jsonl$/.test(path)) {
+    const pid = path.slice(6, -6);
+    const strokes = parsePage(await (await ghRaw(sha)).text(), pid);
+    return (await mergeData({ strokes }, { fromGit: true })).total;
+  }
+  return 0;   // Bilder (assets/…): assetImg holt sie beim ersten Anzeigen
+}
 async function pullChanges(remote, known, meta) {
   const changed = Object.keys(remote).filter(p => remote[p] !== known[p]);
   if (!changed.length) return { total: 0, legacy: false, failed: [] };
-  let total = 0, legacy = false, n = 0, stop = false;
+  let total = 0, n = 0, stop = false;
   const failed = [];
   const order = p => p === 'index.json' ? 0 : p === 'tabula.json' ? 1 : p.startsWith('cards/') ? 2 : p.startsWith('reviews/') ? 3 : p.startsWith('pages/') ? 4 : 5;
   changed.sort((a, b) => order(a) - order(b));
-  meta.done = meta.done || {};
-  for (const path of changed) {
-    if (stop) { failed.push(path); continue; }
+  meta.done = meta.done || {}; meta.remote = remote; pullMeta = meta;
+  await Store.put('meta', meta);
+  const one = async path => {
+    if (stop) { failed.push(path); return; }
+    if (meta.done[path] === remote[path]) { n++; return; }   // schon von openPage nachgeladen
+    try { total += await pullOne(path, remote[path]); meta.done[path] = remote[path]; }
+    catch (e) {
+      console.error('Abgleich', path, e); failed.push(path);
+      if (/bremst|Stundenlimit|ungültig|Schreibrechte|nicht gefunden/.test(e.message || '') || navigator.onLine === false) stop = true;
+    }
     gitProgress = `lädt ${++n} von ${changed.length}`;
     if (n % 10 === 0 && S.view === 'library') renderLibStatus();
-    try {
-      if (path === 'index.json') {
-        const d = JSON.parse(await (await ghRaw(remote[path])).text());
-        total += (await mergeData({ notebooks: d.notebooks, pages: d.pages }, { fromGit: true })).total;
-      } else if (path === 'tabula.json') {
-        const d = JSON.parse(await (await ghRaw(remote[path])).text());
-        total += (await mergeData({ notebooks: d.notebooks, pages: d.pages, strokes: d.strokes }, { fromGit: true })).total;
-        legacy = true;
-      } else if (/^cards\/[^/]+\.jsonl$/.test(path)) {
-        total += await mergeCardFiles(path.slice(6, -6), await (await ghRaw(remote[path])).text(), null);
-      } else if (/^reviews\/[^/]+\.json$/.test(path)) {
-        total += await mergeCardFiles(path.slice(8, -5), null, await (await ghRaw(remote[path])).text());
-      } else if (/^pages\/[^/]+\.jsonl$/.test(path)) {
-        const pid = path.slice(6, -6);
-        const strokes = parsePage(await (await ghRaw(remote[path])).text(), pid);
-        total += (await mergeData({ strokes }, { fromGit: true })).total;
-      }
-      // Bilder (assets/…): nichts laden, assetImg holt sie beim ersten Anzeigen
-      meta.done[path] = remote[path];
-    } catch (e) {
-      console.error('Abgleich', path, e);
-      failed.push(path);
-      if (/bremst|ungültig|Schreibrechte|nicht gefunden/.test(e.message || '') || navigator.onLine === false) stop = true;
-    }
-    if (n % 20 === 0) await Store.put('meta', meta);
-  }
-  return { total, legacy, failed };
+    if (n % 25 === 0) await Store.put('meta', meta);
+  };
+  try {
+    const seq = changed.filter(p => order(p) < 4), par = changed.filter(p => order(p) >= 4);
+    for (const p of seq) await one(p);
+    let i = 0;   // Seiten und Bilder: sechs gleichzeitig, das macht das erste Laden auf dem Handy viel schneller
+    await Promise.all(Array.from({ length: 6 }, async () => { while (i < par.length) await one(par[i++]); }));
+  } finally { pullMeta = null; delete meta.remote; }
+  return { total, legacy: false, failed };
 }
+/* Eine Seite, die der Abgleich noch nicht erreicht hat oder die fehlgeschlagen ist, sofort nachladen, wenn man sie öffnet */
+async function ensurePageLoaded(pid) {
+  if (!syncCfg() || EMBEDDED || !Store.persistent) return false;
+  const meta = pullMeta || await gitMeta(), path = `pages/${pid}.jsonl`;
+  const retry = meta.retry || {}, done = meta.done || {};
+  const sha = retry[path] || (meta.remote && meta.remote[path] !== (done[path] || meta.tree[path]) ? meta.remote[path] : null);
+  if (!sha || done[path] === sha) return false;
+  try {
+    await pullOne(path, sha);
+    meta.done = meta.done || {}; meta.done[path] = sha;
+    if (meta.retry) delete meta.retry[path];
+    if (!pullMeta) await Store.put('meta', meta);
+    return true;
+  } catch (e) { console.error('Seite nachladen', e); return false; }
+}
+
 /* Bild nachladen, das auf diesem Gerät noch fehlt */
 const assetFetching = new Map();
 function fetchRemoteAsset(id) {
@@ -3640,7 +3672,7 @@ async function boot() {
     const hadCtrl = !!navigator.serviceWorker.controller;
     // Notbremse für hängende Updates (v. a. iOS-Homescreen): Stimmt die Version auf dem Server nicht, Zwischenspeicher leeren und neu laden.
     fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(async j => {
-      if (!j || String(j.v) === '30') return;
+      if (!j || String(j.v) === '31') return;
       if (sessionStorage.getItem('tabula.forceUpd') === String(j.v)) return;
       sessionStorage.setItem('tabula.forceUpd', String(j.v));
       flushMeta(); persistDirty();
