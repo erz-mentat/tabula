@@ -8,53 +8,51 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Tabula">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#f7f8fb">
+<meta name="theme-color" content="#f5eee1">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
 </head>
 <body>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,600;1,500&display=swap">
 <style>
 /* Layout: Ein Schreibtisch trägt ein A4-Blatt; oben liegt eine schmale Stiftablage als Werkzeugleiste. */
 :root{
-  --desk:#dfe4ec;
-  --chrome:#f7f8fb;
-  --line:#c7cedb;
-  --fg:#1a2030;
-  --muted:#596276;
-  --accent:#2347c5;          /* Königsblau wie Füllertinte */
-  --accent-soft:#e1e7fb;
-  --accent-fg:#ffffff;
-  --danger:#b4322c;
+  /* Dune: gleiche Palette wie Famulus; das Papier bleibt weiß */
+  --desk:#ece2d0;
+  --chrome:#f5eee1;
+  --line:#dccfb8;
+  --fg:#2a2017;
+  --muted:#7b6b58;
+  --accent:#bf5f2c;
+  --accent-soft:#f0dcc8;
+  --accent-fg:#fffaf2;
+  --danger:#a8392a;
   --danger-fg:#ffffff;
-  --good:#1d7a48;
+  --good:#5d7a3a;
   --good-fg:#ffffff;
   --kred:#de5f5a;              /* Kopflinie der Karteikarte */
   --kink:#1b1f27;              /* Schrift auf Papier, in beiden Themen gleich */
-  --shadow:rgba(24,34,64,.16);
-  --scrim:rgba(18,24,40,.36);
-  --ring:rgba(20,28,48,.16);
+  --shadow:rgba(42,32,23,.16);
+  --scrim:rgba(42,32,23,.38);
+  --ring:rgba(42,32,23,.16);
   --paper:#fdfdfb;           /* Papier bleibt in beiden Themen weiß */
   --rule:#c3d0e4;
   --rule-dot:#9eabc3;
   --spine:rgba(0,0,0,.2);       /* Buchrücken auf farbigen Deckblättern */
-  --font-display:"Spectral", ui-serif, Georgia, "Times New Roman", serif;
-  --font-ui:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display:"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-ui:system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --desk:#13171f; --chrome:#1c212b; --line:#2e3544; --fg:#e6e9f1; --muted:#99a1b5;
-    --accent:#8fa5ff; --accent-soft:#252e4d; --accent-fg:#0d1330; --danger:#ff8a80; --danger-fg:#2a0b08; --good:#6fd39a; --good-fg:#0b2617;
+    --desk:#18140f; --chrome:#29221a; --line:#3f3428; --fg:#f1e6d3; --muted:#a99880;
+    --accent:#e08a4f; --accent-soft:#3a2c1f; --accent-fg:#1f1a14; --danger:#f08c78; --danger-fg:#2a0b08; --good:#a3c078; --good-fg:#1a2410;
     --shadow:rgba(0,0,0,.55); --scrim:rgba(0,0,0,.55); --ring:rgba(255,255,255,.38);
     color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --desk:#13171f; --chrome:#1c212b; --line:#2e3544; --fg:#e6e9f1; --muted:#99a1b5;
-  --accent:#8fa5ff; --accent-soft:#252e4d; --accent-fg:#0d1330; --danger:#ff8a80; --danger-fg:#2a0b08; --good:#6fd39a; --good-fg:#0b2617;
+  --desk:#18140f; --chrome:#29221a; --line:#3f3428; --fg:#f1e6d3; --muted:#a99880;
+  --accent:#e08a4f; --accent-soft:#3a2c1f; --accent-fg:#1f1a14; --danger:#f08c78; --danger-fg:#2a0b08; --good:#a3c078; --good-fg:#1a2410;
   --shadow:rgba(0,0,0,.55); --scrim:rgba(0,0,0,.55); --ring:rgba(255,255,255,.38);
   color-scheme:dark;
 }
@@ -938,7 +936,7 @@ function renderLive() {
     ctx.globalAlpha = 1; ctx.beginPath(); ctx.moveTo(p[0], p[1]);
     for (let i = 2; i < p.length; i += 2) ctx.lineTo(p[i], p[i + 1]);
     ctx.closePath(); ctx.fillStyle = 'rgba(35,71,197,.06)'; ctx.fill();
-    ctx.lineWidth = 1.6 * k; ctx.strokeStyle = '#2347c5'; ctx.setLineDash([6 * k, 5 * k]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.lineWidth = 1.6 * k; ctx.strokeStyle = '#bf5f2c'; ctx.setLineDash([6 * k, 5 * k]); ctx.stroke(); ctx.setLineDash([]);
   }
   const box = sel && !lasso ? selBox() : null;   // Auswahl per Lasso oder per Fingertipp
   if (box) {   // gewählte Striche blau einfärben, damit klar ist, was die Auswahl enthält
@@ -956,10 +954,10 @@ function renderLive() {
   if (box) {
     const k = 1 / S.v.s, [x0, y0, x1, y1] = box;
     ctx.globalAlpha = 1;
-    ctx.lineWidth = 2 * k; ctx.strokeStyle = '#2347c5'; ctx.setLineDash([7 * k, 5 * k]);
+    ctx.lineWidth = 2 * k; ctx.strokeStyle = '#bf5f2c'; ctx.setLineDash([7 * k, 5 * k]);
     ctx.strokeRect(x0, y0, x1 - x0, y1 - y0); ctx.setLineDash([]);
     const dot = (cx, cy, fill) => { ctx.beginPath(); ctx.arc(cx, cy, 12 * k, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 2.5 * k; ctx.strokeStyle = '#ffffff'; ctx.stroke(); };
-    dot(x1, y1, '#2347c5');
+    dot(x1, y1, '#bf5f2c');
     dot(x1, y0, '#c22f2b');
     const d = 4.5 * k; ctx.beginPath();
     ctx.moveTo(x1 - d, y0 - d); ctx.lineTo(x1 + d, y0 + d); ctx.moveTo(x1 + d, y0 - d); ctx.lineTo(x1 - d, y0 + d);
@@ -2017,7 +2015,7 @@ function drawCover(cv, nb, img) {
   const lw = W * 0.66, lx = sp + (W - sp - lw) / 2, ly = H * 0.2;
   let size = 36, lines = [];
   const wrap = sz => {
-    ctx.font = `600 ${sz}px Spectral, Georgia, serif`;
+    ctx.font = `600 ${sz}px "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif`;
     const out = []; let line = '';
     for (const word of String(nb.title).split(/\s+/)) {
       const t = line ? line + ' ' + word : word;
@@ -2033,11 +2031,11 @@ function drawCover(cv, nb, img) {
   ctx.fillStyle = '#fbfaf4'; roundRect(ctx, lx, ly, lw, lh, 7); ctx.fill();
   ctx.strokeStyle = 'rgba(0,0,0,.22)'; ctx.lineWidth = 1.5; roundRect(ctx, lx + 8, ly + 8, lw - 16, lh - 16, 4); ctx.stroke();
   ctx.fillStyle = '#1a2030'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `600 ${size}px Spectral, Georgia, serif`;
+  ctx.font = `600 ${size}px "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif`;
   const y0 = ly + (lh - sub) / 2 - (lines.length - 1) * lh2 / 2 + (sub ? 6 : 0);
   lines.forEach((l, i) => ctx.fillText(l, lx + lw / 2, y0 + i * lh2, lw - 30));
   if (sub) {
-    ctx.font = 'italic 500 19px Spectral, Georgia, serif'; ctx.fillStyle = '#5a6377';
+    ctx.font = 'italic 500 19px "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif'; ctx.fillStyle = '#5a6377';
     ctx.fillText(nb.subtitle, lx + lw / 2, ly + lh - 32, lw - 30);
   }
 }
