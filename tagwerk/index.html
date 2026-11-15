@@ -1,0 +1,2089 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tagwerk">
+<meta name="theme-color" content="#15110c">
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Tagwerk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: Kopfleiste mit Wochensteuerung; darunter links das Wochenraster (Zeitachse + sieben Tagesspalten), rechts die Seitenleiste mit Wochensoll und Warteschlangen. Auf schmalen Bildschirmen ein Tag mit Tagesreitern, Seitenleiste darunter. */
+:root {
+  /* Dune: gleiche Palette und Schriften wie Daimonion */
+  --bg: #e4d6bf;
+  --surface: #ede3d1;
+  --surface-2: #d9c9ae;
+  --ink: #22180f;
+  --muted: #6b5a46;
+  --line: #c9b697;
+  --accent: #8c6b1f;
+  --accent-ink: #fbf4e8;
+  --danger: #983122;
+  --now: #b33a22;
+  --hatch: rgba(42, 32, 23, .08);
+  --scrim: rgba(34, 24, 15, .42);
+  --mix: 20%;
+  /* Farben der Google-Kalender-Farbpalette, damit Blöcke hier und in Google gleich aussehen */
+  /* Terminfarben in Erdtönen, gleiche Reihenfolge wie Google (1 Lavendel … 11 Tomate) */
+  --g1: #8a7ba3; --g2: #7d9758; --g3: #845073; --g4: #c27766; --g5: #c4952f; --g6: #b85a2a; --g7: #4d8794; --g8: #7b6f62; --g9: #57618c; --g10: #5a7537; --g11: #a3362a;
+  --f-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --f-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --pph: 44px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15110c; --surface: #1d1711; --surface-2: #261f17; --ink: #ecdfca; --muted: #9b8970;
+    --line: #342a1f; --accent: #d4a94a; --accent-ink: #15110c; --danger: #e57f6b; --now: #e8694f;
+    --hatch: rgba(236, 223, 202, .07); --scrim: rgba(0, 0, 0, .6); --mix: 26%;
+    --g1: #a597bd; --g2: #9bb575; --g3: #a8719a; --g4: #d9917f; --g5: #d8ae52; --g6: #d5774a; --g7: #6ea6b2; --g8: #9a8e80; --g9: #7b86b3; --g10: #7f9a57; --g11: #cc5b4b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15110c; --surface: #1d1711; --surface-2: #261f17; --ink: #ecdfca; --muted: #9b8970;
+  --line: #342a1f; --accent: #d4a94a; --accent-ink: #15110c; --danger: #e57f6b; --now: #e8694f;
+  --hatch: rgba(236, 223, 202, .07); --scrim: rgba(0, 0, 0, .6); --mix: 26%;
+    --g1: #a597bd; --g2: #9bb575; --g3: #a8719a; --g4: #d9917f; --g5: #d8ae52; --g6: #d5774a; --g7: #6ea6b2; --g8: #9a8e80; --g9: #7b86b3; --g10: #7f9a57; --g11: #cc5b4b;
+  color-scheme: dark;
+}
+@media (max-width: 760px) { :root { --pph: 52px; } }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--f-ui); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1520px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px 40px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+button { font: inherit; color: inherit; }
+a { color: var(--accent); }
+
+/* Kopfleiste */
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: baseline; gap: 12px; }
+.brand h1 { font-family: var(--f-display); font-weight: 600; font-size: 36px; line-height: 1; margin: 0; letter-spacing: .005em; }
+.brand .kw { font-family: var(--f-mono); font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+.nav { display: flex; align-items: center; gap: 6px; }
+.nav .range { font-family: var(--f-display); font-size: 20px; font-weight: 500; min-width: 0; padding-inline: 6px; text-wrap: balance; }
+.acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.status { font-size: 12px; color: var(--muted); }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 12px; min-height: 36px; cursor: pointer; font-weight: 500; }
+.btn:hover { border-color: var(--muted); }
+.btn.icon { min-width: 36px; padding: 6px 0; font-size: 18px; line-height: 1; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.quiet { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.quiet:hover { color: var(--ink); border-color: var(--line); }
+.btn.danger { color: var(--danger); }
+.btn.danger.armed { background: var(--danger); color: var(--surface); border-color: var(--danger); }
+.btn[disabled] { opacity: .5; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.cmd { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.cmd-lab { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.cmd-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.cmd-row input { flex: 1 1 260px; min-width: 0; font-size: 15px; }
+.cmd-out { font-size: 13px; line-height: 1.5; white-space: pre-wrap; border-top: 1px solid var(--line); padding-top: 8px; }
+.cmd-out .act { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); display: block; }
+.load { margin: 0 0 8px; font-size: 12.5px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); }
+.load.ok { color: var(--muted); }
+.load.short { border-color: var(--danger); color: var(--ink); }
+.banner { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--danger); border-radius: 8px; }
+.banner p { margin: 0; flex: 1 1 280px; min-width: 0; }
+
+/* Grundraster */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 20px; margin-top: 16px; align-items: start; }
+@media (max-width: 1120px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.planbox { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: clip; min-width: 0; }
+.tabs { display: none; gap: 6px; overflow-x: auto; padding: 10px 10px 0; }
+.tab { flex: 1 0 auto; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 10px; cursor: pointer; display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
+.tab b { font-family: var(--f-display); font-size: 18px; font-weight: 600; }
+.tab span { font-size: 11px; color: var(--muted); }
+.tab.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.tab.today b { color: var(--accent); }
+
+.heads, .body { display: grid; grid-template-columns: 52px repeat(7, minmax(0, 1fr)); }
+.heads { border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 4; }
+.head { padding: 8px 8px 7px; border-left: 1px solid var(--line); min-width: 0; }
+.head .dl { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.head .d { font-family: var(--f-display); font-weight: 600; font-size: 22px; line-height: 1; }
+.head .lat { font-family: var(--f-display); font-style: italic; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.head.today .d { color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.chip { font-size: 11px; line-height: 1.2; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.chip { cursor: pointer; }
+.chip.tog[aria-pressed="false"] { background: transparent; border-style: dashed; }
+.chip.hol { color: var(--ink); border-color: var(--muted); }
+.chip.ext { color: var(--ink); }
+.chip.wx { background: transparent; font-family: var(--f-mono); font-size: 10.5px; }
+.chip.wx.wet { color: var(--ink); border-color: var(--g7); background: color-mix(in srgb, var(--g7) 16%, var(--surface)); }
+.chip.geb { color: var(--ink); border-color: var(--g11); background: color-mix(in srgb, var(--g11) 12%, var(--surface)); font-weight: 600; }
+.bd { list-style: none; margin: 0; padding: 0; }
+.bd li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.bd li b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd li .mono { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.bd li.soon b { color: var(--ink); font-weight: 600; }
+.mini.armed { color: var(--danger); border-color: var(--danger); width: auto; padding-inline: 6px; }
+
+.axis { position: relative; height: calc(var(--pph) * 17); }
+.axis span { position: absolute; right: 7px; transform: translateY(-50%); font-family: var(--f-mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.axis span:first-child { transform: none; }
+.col { position: relative; height: calc(var(--pph) * 17); border-left: 1px solid var(--line); background-image: linear-gradient(var(--line) 1px, transparent 1px); background-size: 100% var(--pph); cursor: copy; }
+.col.past { background-color: color-mix(in srgb, var(--surface-2) 45%, transparent); }
+
+.blk { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; align-items: stretch; text-align: left; gap: 1px; padding: 3px 6px 3px 8px; border-radius: 6px; border: 1px solid transparent; overflow: hidden; font-size: 12px; line-height: 1.25; cursor: pointer; min-width: 0; }
+.blk .tm { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.blk .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blk .s { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blk.sm { flex-direction: row; align-items: center; gap: 6px; padding-block: 1px; }
+.blk.sm .s { display: none; }
+.blk.plan { background: color-mix(in srgb, var(--c) var(--mix), var(--surface)); border-left: 3px solid var(--c); }
+.blk.plan:hover { background: color-mix(in srgb, var(--c) calc(var(--mix) + 8%), var(--surface)); }
+.blk.done { opacity: .55; }
+.blk.done .t::before { content: "✓ "; }
+.blk.ext { background: var(--surface-2); border-left: 3px solid var(--muted); }
+.blk.sugg { background: color-mix(in srgb, var(--c) 7%, var(--surface)); border: 1.5px dashed var(--c); }
+.blk.sugg .tm { color: var(--ink); }
+.blk.sugg.opt { border-style: dotted; background: transparent; opacity: .85; }
+.blk.frame { padding: 4px 0 0 2px; background: color-mix(in srgb, var(--c) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--c) 45%, var(--line)); border-left: 3px solid var(--c); z-index: 0; }
+.blk.frame.fsugg { border-style: dashed; border-left-style: solid; background: color-mix(in srgb, var(--c) 5%, var(--surface)); }
+.blk.frame .fl-lab { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10.5px; font-weight: 600; color: color-mix(in srgb, var(--c) 70%, var(--ink)); white-space: nowrap; overflow: hidden; max-height: 100%; align-self: flex-start; }
+.blk.frame:hover { background: color-mix(in srgb, var(--c) 15%, var(--surface)); }
+.col > .blk:not(.frame) { z-index: 1; }
+.chip.test { color: var(--ink); border-color: var(--g11); font-weight: 600; background: transparent; }
+.blk.school { cursor: default; color: var(--muted); background: repeating-linear-gradient(135deg, var(--hatch) 0 6px, transparent 6px 12px), var(--surface-2); }
+.blk.school .t { font-weight: 500; }
+.blk.school.exam { border: 1.5px solid var(--danger); color: var(--ink); }
+.now { position: absolute; left: 0; right: 0; border-top: 2px solid var(--now); z-index: 3; pointer-events: none; }
+.now::before { content: ""; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--now); }
+
+.loading-note { position: absolute; inset: 40% 8px auto; text-align: center; color: var(--muted); font-size: 13px; pointer-events: none; }
+
+/* Ein-Tages-Ansicht */
+.planbox.single .tabs { display: flex; }
+.planbox.single .heads, .planbox.single .body { grid-template-columns: 52px minmax(0, 1fr); }
+.planbox.single .head:not(.on), .planbox.single .col:not(.on) { display: none; }
+
+/* Seitenleiste */
+.side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+@media (min-width: 1121px) { .side { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; } }
+.side .panel[data-tab] { display: none; }
+.side[data-tab="soll"] .panel[data-tab="soll"], .side[data-tab="q"] .panel[data-tab="q"], .side[data-tab="task"] .panel[data-tab="task"], .side[data-tab="test"] .panel[data-tab="test"], .side[data-tab="geb"] .panel[data-tab="geb"] { display: block; }
+.stabs { display: flex; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; position: sticky; top: 0; z-index: 2; }
+.stab { flex: 1 1 auto; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; padding: 6px 4px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+.stab span { font-size: 11px; color: var(--accent); }
+.stab.on { background: var(--raise, var(--bg)); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.seen.more summary { color: var(--muted); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 16px; min-width: 0; }
+.panel h2 { font-family: var(--f-display); font-weight: 600; font-size: 24px; line-height: 1.1; margin: 0; }
+.panel .ph { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+.eyebrow:first-of-type { margin-top: 2px; }
+.dot { width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex: none; }
+
+.soll { display: flex; flex-direction: column; gap: 2px; }
+.srow { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.srow:last-child { border-bottom: 0; }
+.srow .nm { min-width: 0; }
+.srow .nm b { font-weight: 500; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srow .nm small { display: block; color: var(--muted); font-size: 11px; }
+.pips { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-end; max-width: 96px; }
+.pip { width: 9px; height: 9px; border-radius: 2px; border: 1.5px solid color-mix(in srgb, var(--c) 70%, var(--muted)); box-sizing: border-box; }
+.pip.set { background: var(--c); border-color: var(--c); }
+.pip.sug { border-style: dashed; background: color-mix(in srgb, var(--c) 25%, transparent); }
+.step { display: flex; align-items: center; gap: 2px; }
+.step button { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; line-height: 1; }
+.step span { min-width: 18px; text-align: center; }
+
+.lec { display: flex; flex-direction: column; gap: 5px; padding: 6px 0 8px; }
+.lec-h { display: flex; align-items: center; gap: 8px; }
+.lec-h b { font-weight: 600; flex: 1; min-width: 0; }
+.lec-h .mono { font-size: 12px; color: var(--muted); }
+.meter { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--c); }
+
+.yt { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.yt li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto auto; gap: 6px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.yt li .n { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+.yt li a { color: var(--ink); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.yt li a:hover { text-decoration: underline; }
+.yt li .mono { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.mini { width: 26px; height: 26px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; }
+.mini:hover { border-color: var(--line); color: var(--ink); }
+.seen { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.seen ul { margin: 6px 0 0; padding-left: 18px; }
+
+.form { display: grid; gap: 6px; margin-top: 10px; }
+.form .row { display: flex; gap: 6px; flex-wrap: wrap; }
+.form .row > * { min-width: 0; }
+label.fl { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+input[type="text"], input[type="url"], input[type="number"], input[type="time"], select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; min-height: 34px; box-sizing: border-box; width: 100%; }
+input[type="number"] { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.note { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+
+/* Blatt (Dialog) */
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 30; display: flex; align-items: flex-end; justify-content: center; padding-top: env(safe-area-inset-top, 0px); }
+.sheet { background: var(--surface); color: var(--ink); width: min(560px, 100%); max-height: 86vh; overflow: auto; box-sizing: border-box; border-radius: 14px 14px 0 0; padding: 18px max(18px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px)); box-shadow: 0 -8px 30px rgba(0,0,0,.18); }
+@media (min-width: 761px) { .scrim { align-items: center; } .sheet { border-radius: 14px; } }
+.sheet h3 { font-family: var(--f-display); font-weight: 600; font-size: 26px; line-height: 1.1; margin: 2px 0 4px; text-wrap: balance; }
+.sheet .sub { color: var(--muted); margin: 0 0 12px; }
+.sheet .acts2 { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.sheet .acts2 .grow { flex: 1; }
+.types { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.types button { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; background: var(--surface); cursor: pointer; }
+.types button[aria-pressed="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) var(--mix), var(--surface)); font-weight: 600; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.settings-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.settings-tbl th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding: 4px 4px; }
+.settings-tbl td { padding: 3px 4px; border-top: 1px solid var(--line); }
+.settings-tbl td:first-child { white-space: nowrap; }
+.tblwrap { overflow-x: auto; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 40; background: var(--ink); color: var(--surface); padding: 9px 14px; border-radius: 8px; max-width: min(520px, calc(100% - 32px)); box-sizing: border-box; font-size: 13px; }
+@media (prefers-reduced-motion: no-preference) { .toast { animation: rise .18s ease-out; } @keyframes rise { from { transform: translate(-50%, 8px); opacity: 0; } } }
+</style>
+
+<div class="wrap">
+  <header class="bar">
+    <div class="brand"><h1>Tagwerk</h1><span class="kw" id="kw">KW</span></div>
+    <div class="nav">
+      <button class="btn icon" data-act="prev" aria-label="Vorige Woche">‹</button>
+      <span class="range" id="range"></span>
+      <button class="btn icon" data-act="next" aria-label="Nächste Woche">›</button>
+      <button class="btn quiet" data-act="today">Heute</button>
+    </div>
+    <div class="acts">
+      <span class="status" id="status" aria-live="polite"></span>
+      <button class="btn quiet" data-act="reload">Aktualisieren</button>
+      <button class="btn" data-act="resuggest">Neu vorschlagen</button>
+      <button class="btn danger" data-act="replan">Woche neu planen</button>
+      <button class="btn primary" data-act="acceptAll" id="acceptAll">Alle übernehmen</button>
+      <button class="btn quiet" data-act="settings">Einstellungen</button>
+      <a class="btn quiet" href="https://claude.ai/artifact/JUTZ9quojkrynmfz3efk89" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center">Morgenbericht</a>
+    </div>
+  </header>
+  <div id="banner"></div>
+  <form class="cmd" data-form="cmd" id="cmd" hidden>
+    <label class="cmd-lab" for="cmd-in">Sag Tagwerk, was sich ändert</label>
+    <div class="cmd-row"><input type="text" id="cmd-in" autocomplete="off" placeholder="z. B. Gym auf morgen, dafür eine Lernzeit weg"><button class="btn primary" type="submit" id="cmd-go">Ausführen</button><button class="btn quiet" type="button" data-act="cmdStop" id="cmd-stop" hidden>Stopp</button></div>
+    <div class="cmd-out" id="cmd-out" aria-live="polite" hidden></div>
+  </form>
+  <div class="layout">
+    <section class="planbox" id="plan" aria-label="Wochenplan"></section>
+    <aside class="side" id="side"></aside>
+  </div>
+</div>
+<div class="scrim" id="scrim" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="store.js"></script>
+<script>
+(() => {
+"use strict";
+const SERVER = "Google Calendar";
+const HOLI = "de.german#holiday@group.v.calendar.google.com";
+const H0 = 7, H1 = 24;
+const DSHORT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const DLONG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+const DLAT = ["Lunae", "Martis", "Mercurii", "Iovis", "Veneris", "Saturni", "Solis"];
+const MON = ["Jan", "Feb", "März", "Apr", "Mai", "Juni", "Juli", "Aug", "Sep", "Okt", "Nov", "Dez"];
+const TYPE_ORDER = ["gt", "lern", "fokus", "bib", "gym", "va", "vb", "yt", "sach", "abend"];
+const OTHER_ORDER = ["fokus", "lern", "va", "vb", "sach", "yt"];
+const RANK = { bib: [3, 1, 1, 1, 3, 0, 9], gym: [0, 2, 1, 2, 0, 1, 3], gymBib: [1, 0, 0, 0, 1, 1, 2], lern: [1, 0, 0, 0, 1, 2, 3] };
+const META = {
+  lern: { label: "Lernzeit", color: "9" }, fokus: { label: "Fokusphase", color: "3" },
+  bib: { label: "Bibliothek", color: "10" }, gym: { label: "Gym", color: "6" },
+  va: { label: "Vorlesung A", color: "7" }, vb: { label: "Lektüre", color: "1" },
+  yt: { label: "YouTube", color: "4" }, sach: { label: "Primärbuch", color: "2" },
+  abend: { label: "Sekundärbuch", color: "5" }, geb: { label: "Geburtstag", color: "11" },
+  test: { label: "Test", color: "11" }, gt: { label: "Spieltheorie", color: "8" }, task: { label: "Aufgabe", color: "11" }
+};
+/* Blöcke, die auch innerhalb der Bibliothekszeit laufen dürfen, und Höchstzahl pro Tag */
+const INNER = { gt: true, lern: true, va: true, vb: true, yt: true };
+const PERDAY = { gt: 2, lern: 1, fokus: 1, va: 2, vb: 2, yt: 2, sach: 1 };
+const DEFAULT_STORE = {
+  settings: {
+    weekendStart: "08:00", dayEnd: "23:00", afterSchool: 30, buffer: 15,
+    school: { "0": ["08:15", "15:15"], "1": ["08:15", "13:15"], "2": ["08:15", "13:15"], "3": ["08:15", "13:15"], "4": ["08:15", "15:15"] },
+    schoolOff: {},
+    walk: { bib: 30, bibGym: 15, gym: 30 }, rainLimit: 50, wx: {}, skip: {},
+    lunch: { from: "12:00", to: "16:30", dur: 45 }, lecturesPerWeek: 9, lectureFirst: "vb", remind: 5
+  },
+  types: {
+    lern: { dur: 90, perWeek: 4, from: "14:00", to: "21:00" },
+    fokus: { dur: 90, perWeek: 5, from: "19:00", to: "23:00" },
+    bib: { dur: 180, perWeek: 3, from: "10:00", to: "20:00", sundayFixed: true },
+    gym: { dur: 90, perWeek: 2, from: "10:00", to: "21:30" },
+    va: { dur: 60, perWeek: 3, from: "17:00", to: "22:30" },
+    vb: { dur: 60, perWeek: 2, from: "17:00", to: "22:30" },
+    yt: { dur: 60, perWeek: 6, from: "19:00", to: "23:00" },
+    sach: { dur: 45, perWeek: 6, from: "08:00", to: "23:00" },
+    abend: { dur: 45, fixed: "23:00" },
+    gt: { dur: 120, perWeek: 2, from: "08:00", to: "21:00", optional: 1 }
+  },
+  lectures: { va: { name: "", total: 0, sid: "a0" }, vb: { name: "", total: 0, sid: "b0" } },
+  yt: [],
+  gt: [],
+  gtDoc: "",
+  tasks: [],
+  books: { sach: "", abend: "" },
+  birthdays: [],
+  tests: [],
+  done: {}
+};
+
+/* ---------- Hilfsfunktionen ---------- */
+const $ = s => document.querySelector(s);
+const clone = o => JSON.parse(JSON.stringify(o));
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const dayStart = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const mondayOf = d => { const x = dayStart(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+const toMin = s => { const [h, m] = String(s || "0:0").split(":").map(Number); return (h || 0) * 60 + (m || 0); };
+const hhmm = m => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+const ceil15 = m => Math.ceil(m / 15) * 15;
+const minOfDay = d => d.getHours() * 60 + d.getMinutes();
+const localISO = (d, min) => `${ymd(d)}T${hhmm(min)}:00`;
+const dateAt = (d, min) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, min);
+const ymdToDate = s => { const [y, m, d] = s.slice(0, 10).split("-").map(Number); return new Date(y, m - 1, d); };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const rid = () => Math.random().toString(36).slice(2, 10);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const fmtH = h => { const r = Math.round(h * 2) / 2; const w = Math.floor(r); return r % 1 ? (w ? w + "½" : "½") : String(w); };
+const isoWeek = d => { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const wd = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - wd); const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1)); return Math.ceil(((t - y0) / 864e5 + 1) / 7); };
+function merge(base, over) {
+  if (over === undefined || over === null) return base;
+  if (typeof over !== "object" || Array.isArray(over) || typeof base !== "object" || base === null || Array.isArray(base)) return over;
+  const out = { ...base };
+  for (const k of Object.keys(over)) out[k] = merge(base[k], over[k]);
+  return out;
+}
+const use = n => TW.use(n);
+
+/* ---------- Zustand ---------- */
+const S = {
+  store: clone(DEFAULT_STORE), storeLoaded: false, ref: null, dbOff: false, writes: Promise.resolve(),
+  mcp: null, calErr: null, eventsLoaded: false, loading: false, loadedAt: null,
+  weekStart: mondayOf(new Date()), events: [], holidays: {}, weather: null,
+  sugg: [], short: {}, labels: {}, rejected: new Set(),
+  activeDay: (new Date().getDay() + 6) % 7, single: false, busy: false, sheet: null
+};
+
+const typeLabel = t => (t === "va" || t === "vb") ? (S.store.lectures[t].name || META[t].label) : META[t].label;
+const colorVar = t => `var(--g${(META[t] || { color: "8" }).color})`;
+/* Vergangene Blöcke gelten automatisch als erledigt, außer sie wurden als „nicht gemacht“ markiert */
+const AUTO_SKIP = ["geb", "test", "abend", "bib"];
+const isDone = ev => { const d = S.store.done[ev.id]; if (d && d.skipped) return false; return !!d || /^✓/.test(ev.title) || (!!ev.type && !ev.allDay && ev.end <= new Date()); };
+function autoDone(events) {
+  if (!S.storeLoaded || !S.ref) return false;
+  const now = new Date();
+  const list = events.filter(e => e.type && !AUTO_SKIP.includes(e.type) && !e.allDay && e.end <= now && !S.store.done[e.id]).sort((a, b) => a.end - b.end);
+  for (const ev of list) {
+    const min = Math.round((ev.end - ev.start) / 60000), entry = { slot: ev.type, min, at: +ev.end, auto: true };
+    if (queueOf(ev.type)) {
+      let need = min; const alloc = [];
+      for (const it of ytQueue(queueOf(ev.type)).filter(i => i.rest > 0)) { if (need <= 0) break; const take = Math.min(need, it.rest); alloc.push([it.id, take]); need -= take; }
+      entry.alloc = alloc;
+    }
+    if (ev.type === "va" || ev.type === "vb") entry.sid = S.store.lectures[ev.type].sid;
+    if (ev.type === "task" && ev.taskId) { const t = (S.store.tasks || []).find(x => x.id === ev.taskId); if (t) t.done = true; }
+    S.store.done[ev.id] = entry;
+  }
+  return list.length > 0;
+}
+const cleanTitle = t => String(t || "").replace(/^✓\s*/, "");
+
+function parseEvent(ev) {
+  if (!ev || ev.status === "cancelled" || !ev.start) return null;
+  const allDay = !!(ev.start.date && !ev.start.dateTime);
+  const start = allDay ? ymdToDate(ev.start.date) : new Date(ev.start.dateTime);
+  const end = allDay ? ymdToDate((ev.end && ev.end.date) || ev.start.date) : new Date((ev.end && ev.end.dateTime) || ev.start.dateTime);
+  const m = /\[tagwerk:([a-z]+)\]/.exec(ev.description || "");
+  const type = m && META[m[1]] ? m[1] : null;
+  const tm = /aufgabe:([\w-]+)/.exec(ev.description || "");
+  return { id: ev.id, title: ev.summary || "(ohne Titel)", start, end, allDay, transparent: ev.transparency === "transparent", type, desc: ev.description || "", link: ev.htmlLink || "", birthday: ev.eventType === "BIRTHDAY" || type === "geb", taskId: tm ? tm[1] : null };
+}
+const walkDay = i => i !== 6;
+function wxFor(key) {
+  const set = S.store.settings, o = set.wx && set.wx[key];
+  const w = S.weather && S.weather.days ? S.weather.days[key] : null;
+  const lim = +set.rainLimit || 50;
+  if (o === "wet") return { wet: true, manual: true, w };
+  if (o === "dry") return { wet: false, manual: true, w };
+  if (w) return { wet: (+w.pop || 0) >= lim, manual: false, w };
+  return { wet: false, manual: false, w: null };
+}
+/* Mittagspause an schulfreien Tagen: wird nach Bibliothek und Gym in die erste freie Lücke im Mittagsfenster gelegt */
+function lunchOf(i, date) { return (S.lunchAt && S.lunchAt[ymd(date)]) || null; }
+/* Nächster Test innerhalb von drei Tagen nach diesem Datum */
+function testAhead(date) {
+  const k0 = ymd(date), k3 = ymd(addDays(date, 3));
+  const list = (S.store.tests || []).filter(t => t.date > k0 && t.date <= k3).sort((a, b) => a.date.localeCompare(b.date));
+  if (!list.length) return null;
+  const t = list[0], days = Math.round((ymdToDate(t.date) - dayStart(date)) / 864e5);
+  return { subject: t.subject, when: days === 1 ? "morgen" : DLONG[(ymdToDate(t.date).getDay() + 6) % 7] };
+}
+function skipped(key, type) { const s = S.store.settings.skip && S.store.settings.skip[key]; return Array.isArray(s) && s.includes(type); }
+function nextOcc(dateStr) {
+  const [, m, d] = String(dateStr).slice(0, 10).split("-").map(Number);
+  const t0 = dayStart(new Date());
+  let n = new Date(t0.getFullYear(), m - 1, d);
+  if (n < t0) n = new Date(t0.getFullYear() + 1, m - 1, d);
+  return n;
+}
+function segmentsForDay(ev, date) {
+  const ds = dayStart(date), de = addDays(ds, 1);
+  if (ev.end <= ds || ev.start >= de) return null;
+  const s = ev.start < ds ? 0 : minOfDay(ev.start);
+  const e = ev.end >= de ? 1440 : minOfDay(ev.end);
+  return e > s ? [s, e] : (ev.allDay ? [0, 1440] : null);
+}
+function schoolOf(i, date) {
+  if (i > 4) return null;
+  const key = ymd(date);
+  if (S.store.settings.schoolOff[key]) return null;
+  if (S.holidays[key] && S.holidays[key].free) return null;
+  const ex = (S.store.settings.schoolEx || {})[key];
+  const t = ex || S.store.settings.school[String(i)];
+  if (!t || !t[0] || !t[1]) return null;
+  return [toMin(t[0]), toMin(t[1])];
+}
+
+/* ---------- Warteschlangen ---------- */
+function ytConsumed() {
+  const c = {};
+  for (const e of Object.values(S.store.done)) if (e && e.alloc) for (const [id, m] of e.alloc) c[id] = (c[id] || 0) + m;
+  return c;
+}
+const queueOf = type => (type === "yt" || type === "gt") ? type : (((S.store.lectures || {})[type] || {}).queue || null);
+function ytQueue(list) {
+  const c = ytConsumed();
+  return (S.store[list || "yt"] || []).map(it => ({ ...it, rest: Math.max(0, (+it.min || 0) - (c[it.id] || 0)) }));
+}
+function lessonsOf(i, date) {
+  const set = S.store.settings, L = (set.ttEx || {})[ymd(date)] || (set.timetable || {})[String(i)];
+  if (!L || !L.length) return null;
+  return L.map(l => ({ s: toMin(l[0]), e: toMin(l[1]), t: l[2] || "", sub: l[3] || "", test: !!l[4] }));
+}
+function lectureRemain(slot) {
+  const L = S.store.lectures[slot]; let used = 0;
+  for (const e of Object.values(S.store.done)) if (e && e.slot === slot && e.sid === L.sid) used += e.min || 0;
+  return Math.max(0, (+L.total || 0) - used / 60);
+}
+function plannedFutureMin(type) {
+  const now = new Date(); let m = 0;
+  for (const ev of S.events) if (ev.type === type && !isDone(ev) && ev.end > now) m += (ev.end - ev.start) / 60000;
+  return m;
+}
+function capacity() {
+  const st = S.store, cap = {};
+  for (const slot of ["va", "vb"]) {
+    const rem = lectureRemain(slot) * 60 - plannedFutureMin(slot);
+    cap[slot] = Math.max(0, Math.ceil(rem / Math.max(15, +st.types[slot].dur || 60)));
+    const L = st.lectures[slot];
+    if (L && L.perWeek != null && S.weekStart) {
+      const ws = S.weekStart, we = addDays(S.weekStart, 7);
+      const n = S.events.filter(e => e.type === slot && e.start >= ws && e.start < we).length;
+      cap[slot] = Math.min(cap[slot], Math.max(0, +L.perWeek - n));
+    }
+  }
+  const ytRest = ytQueue().reduce((a, i) => a + i.rest, 0) - plannedFutureMin("yt");
+  cap.yt = Math.max(0, Math.ceil(ytRest / Math.max(15, +st.types.yt.dur || 60)));
+  return cap;
+}
+function upcoming(type, extra) {
+  const now = new Date();
+  const evs = S.events.filter(e => e.type === type && !isDone(e) && e.end > now).map(e => ({ key: "e:" + e.id, start: e.start, min: (e.end - e.start) / 60000 }));
+  const sg = S.sugg.filter(s => s.type === type).map(s => ({ key: "s:" + s.key, start: s.startDate, min: s.dur }));
+  const ex = (extra || []).filter(x => x.type === type);
+  return [...evs, ...sg, ...ex].sort((a, b) => a.start - b.start);
+}
+/* Link auf die Stelle, an der es weitergeht: bereits geschaute Minuten auf die Startzeit des Links aufschlagen */
+function atOffset(url, add) {
+  if (!(add > 0) || !/youtube\.com|youtu\.be/.test(url)) return url;
+  const m = url.match(/[?&]t=(\d+)s?/), base = m ? +m[1] : 0, t = base + Math.round(add);
+  return m ? url.replace(/([?&])t=\d+s?/, `$1t=${t}s`) : url + (url.includes("?") ? "&" : "?") + `t=${t}s`;
+}
+function computeLabels(extra) {
+  const L = {};
+  for (const qt of ["yt", "gt"]) {
+  const q = ytQueue(qt).filter(i => i.rest > 0).map(i => ({ ...i }));
+  for (const b of upcoming(qt, extra)) {
+    let need = b.min; const parts = []; const urls = [];
+    while (need > 0 && q.length) {
+      const it = q[0], before = it.rest, take = Math.min(need, it.rest);
+      parts.push({ title: it.title, take, before, whole: +it.min || before });
+      if (it.url) urls.push(atOffset(it.url, ((+it.min || before) - before) * 60));
+      it.rest -= take; need -= take;
+      if (it.rest <= 0) q.shift();
+    }
+    L[b.key] = parts.length
+      ? { title: parts.map(p => p.title).join(" + "), sub: parts.map(p => (p.take < p.before || p.before < p.whole) ? `${p.take} von ${p.before} min` : `${p.take} min`).join(" · "), urls, ids: parts }
+      : { title: qt === "gt" ? "Plan leer" : "Liste leer", sub: qt === "gt" ? "Nächsten Schritt in der Seitenleiste eintragen" : "Videos in der Seitenleiste hinzufügen", urls: [] };
+  }
+  }
+  for (const slot of ["va", "vb"]) {
+    let rem = lectureRemain(slot);
+    const qn = queueOf(slot), q = qn ? ytQueue(qn).filter(i => i.rest > 0).map(i => ({ ...i })) : [];
+    for (const b of upcoming(slot, extra)) {
+      const sub = rem > 0 ? `noch ${fmtH(rem)} h offen` : "Reihe abgeschlossen";
+      /* Reihe mit Leseliste: der Block nennt den konkreten Text und verlinkt ihn */
+      let need = b.min; const parts = [], urls = [];
+      while (qn && need > 0 && q.length) {
+        const it = q[0], before = it.rest, take = Math.min(need, it.rest);
+        parts.push(it.title); if (it.url) urls.push(it.url);
+        it.rest -= take; need -= take; if (it.rest <= 0) q.shift();
+      }
+      L[b.key] = parts.length ? { title: typeLabel(slot), qtitle: parts.join(" + "), sub, urls } : { title: typeLabel(slot), sub };
+      rem = Math.max(0, rem - b.min / 60);
+    }
+  }
+  const tasks = S.store.tasks || [];
+  const tLab = id => { const t = tasks.find(x => x.id === id); return t ? { title: t.title, sub: `fällig ${dueText(t)}`, taskId: t.id } : null; };
+  for (const s of S.sugg) if (s.type === "task") L["s:" + s.key] = tLab(s.taskId);
+  for (const e of S.events) if (e.type === "task" && e.taskId) L["e:" + e.id] = tLab(e.taskId);
+  return L;
+}
+function dueText(t) {
+  const d = ymdToDate(t.due);
+  return `${DSHORT[(d.getDay() + 6) % 7]} ${d.getDate()}. ${MON[d.getMonth()]}${t.dueTime ? ", " + t.dueTime : ""}`;
+}
+
+/* ---------- Lückenvorschläge ---------- */
+/* Freier Platz: Block [t, t+dur] mit Vorlauf pre (z. B. Fußweg hin) und Nachlauf post (Fußweg zurück).
+   Zwischen zwei Blöcken liegt mindestens der größere Weg bzw. die Pause zwischen Blöcken. */
+function findSlot(day, from, to, dur, pre, post, ok, ignore) {
+  /* ignore: ein Bibliotheksrahmen, in den der Block hineingelegt wird */
+  const buf = Math.max(0, +S.store.settings.buffer || 0);
+  let t = ceil15(Math.max(day.open + pre, from));
+  const hi = Math.min(day.close, to);
+  for (let guard = 0; guard < 400; guard++) {
+    let moved = false;
+    for (const b of day.busy) {
+      if (b === ignore) continue;
+      const gA = Math.max(b.post, pre, buf), gB = Math.max(post, b.pre, buf);
+      if (t < b.e + gA && t + dur + gB > b.s) { t = ceil15(b.e + gA); moved = true; }
+    }
+    if (moved) continue;
+    if (t + dur > hi || t + dur + post > day.close) return null;
+    if (ok && !ok(t)) { t += 15; continue; }
+    return t;
+  }
+  return null;
+}
+function computeSuggestions() {
+  const st = S.store, set = st.settings, now = new Date(), today0 = dayStart(now);
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const date = addDays(S.weekStart, i);
+    const day = { i, date, key: ymd(date), busy: [], load: 0, types: {}, closed: false };
+    const sch = schoolOf(i, date);
+    if (sch) day.busy.push({ s: sch[0], e: sch[1], pre: 0, post: 0 });
+    const W = set.walk || {};
+    for (const ev of S.events) {
+      if (ev.allDay) continue;
+      const seg = segmentsForDay(ev, date);
+      if (!seg) continue;
+      if (ev.type) {
+        const pad = !walkDay(i) ? 0 : ev.type === "bib" ? (+W.bib || 0) : ev.type === "gym" ? (+W.gym || 0) : 0;
+        day.types[ev.type] = (day.types[ev.type] || 0) + 1;
+        day.busy.push({ s: seg[0], e: seg[1], pre: pad, post: pad, type: ev.type }); day.load += seg[1] - seg[0];
+      } else if (!ev.transparent) { day.busy.push({ s: seg[0], e: seg[1], pre: 0, post: 0 }); day.load += seg[1] - seg[0]; }
+    }
+    day.open = sch ? sch[1] + (+set.afterSchool || 0) : toMin(set.weekendStart);
+    day.schoolEnd = sch ? sch[1] : null;
+    day.day0school = !!sch;
+    day.close = toMin(set.dayEnd);
+    if (date < today0) day.closed = true;
+    else if (+date === +today0) day.open = Math.max(day.open, ceil15(minOfDay(now)) + 15);
+    if (day.open >= day.close) day.closed = true;
+    days.push(day);
+  }
+  const counts = {};
+  for (const ev of S.events) if (ev.type) counts[ev.type] = (counts[ev.type] || 0) + 1;
+  const T = st.types, W = set.walk || {}, wB = +W.bib || 0, wBG = +W.bibGym || 0, wG = +W.gym || 0;
+  const cap = capacity(), out = [], short = {};
+  const rej = (type, d, t) => S.rejected.has(`${type}@${d.key}T${t}`);
+  const add = (type, d, s, dur, pre, post, pair, inner) => {
+    out.push({ key: `${type}@${d.key}T${s}`, type, i: d.i, date: d.date, start: s, dur, startDate: dateAt(d.date, s), pair: pair || null, pre, inner: !!inner });
+    d.busy.push({ s, e: s + dur, pre, post, type }); d.types[type] = (d.types[type] || 0) + 1; d.load += dur;
+  };
+  const score = (type, d) => ((RANK[type] || [0, 0, 0, 0, 0, 0, 0])[d.i]) * 60 + d.load * 0.25 + d.i;
+  const pads = d => walkDay(d.i) ? { b: wB, g: wG } : { b: 0, g: 0 };
+  /* Mittag an freien Tagen fest freihalten; Gym nie direkt danach (frühestens eine Stunde nach dem Mittag) */
+  const lunchW = d => { const L = set.lunch; if (!L || !L.from || d.day0school) return null; const a = toMin(L.from); return [a, a + (+L.dur || 45)]; };
+  const noLunch = (d, t, dur) => { const w = lunchW(d); return !w || t + dur <= w[0] || t >= w[1]; };
+  const gymOkAt = (d, t) => { const w = lunchW(d); return noLunch(d, t, gymDur) && (!w || t < w[1] || t >= w[1] + 60); };
+
+  /* Bibliothek, Gym möglichst direkt davor oder danach */
+  const bibDur = Math.max(15, +T.bib.dur || 180), gymDur = Math.max(15, +T.gym.dur || 90);
+  const bF = toMin(T.bib.from), bT = toMin(T.bib.to), gF = toMin(T.gym.from), gT = toMin(T.gym.to);
+  let bibNeed = Math.max(0, (+T.bib.perWeek || 0) - (counts.bib || 0));
+  let gymNeed = Math.max(0, (+T.gym.perWeek || 0) - (counts.gym || 0));
+  const gymAdj = d => (days[d.i - 1] && days[d.i - 1].types.gym) || (days[d.i + 1] && days[d.i + 1].types.gym);
+  const gymOK = d => !d.closed && !d.types.gym && !skipped(d.key, "gym") && !gymAdj(d);
+  const bibOK = d => !d.closed && !d.types.bib && !skipped(d.key, "bib") && !S.holidays[d.key] && (!walkDay(d.i) || !wxFor(d.key).wet);
+  const sun = days[6];
+  const ordered = [];
+  if (T.bib.sundayFixed && bibOK(sun)) ordered.push(sun);
+  ordered.push(...days.filter(d => bibOK(d) && !(T.bib.sundayFixed && d.i === 6)).sort((a, b) => score("bib", a) - score("bib", b)));
+  const chosen = [];
+  for (const d of ordered) {
+    if (chosen.length >= bibNeed) break;
+    const p = pads(d);
+    if (findSlot(d, bF, bT, bibDur, p.b, p.b) != null) chosen.push(d);
+  }
+  const gymDays = new Set(days.filter(d => d.types.gym).map(d => d.i)), gymOn = new Set();
+  let gLeft = gymNeed;
+  for (const d of chosen.slice().sort((a, b) => RANK.gymBib[a.i] - RANK.gymBib[b.i])) {
+    if (gLeft <= 0) break;
+    if (d.types.gym || skipped(d.key, "gym") || gymDays.has(d.i - 1) || gymDays.has(d.i + 1)) continue;
+    gymOn.add(d.i); gymDays.add(d.i); gLeft--;
+  }
+  const placeBibAlone = d => {
+    const p = pads(d);
+    const t = findSlot(d, bF, bT, bibDur, p.b, p.b, t => !rej("bib", d, t));
+    if (t == null) return false;
+    add("bib", d, t, bibDur, p.b, p.b); bibNeed--; return true;
+  };
+  for (const d of chosen) {
+    const p = pads(d);
+    if (gymOn.has(d.i)) {
+      /* Gym bevorzugt vor der Bib: abends ist dort wenig los, danach ist er ruhiger in der Bib */
+      let t = findSlot(d, Math.max(gF, bF - gymDur - wBG), bT, gymDur + wBG + bibDur, p.g, p.b, t => !rej("gym", d, t) && !rej("bib", d, t + gymDur + wBG) && gymOkAt(d, t));
+      if (t != null) {
+        add("gym", d, t, gymDur, p.g, wBG, "vor der Bib"); add("bib", d, t + gymDur + wBG, bibDur, wBG, p.b, "vorher");
+        bibNeed--; gymNeed--; continue;
+      }
+      t = findSlot(d, bF, gT, bibDur + wBG + gymDur, p.b, p.g, t => !rej("bib", d, t) && !rej("gym", d, t + bibDur + wBG) && gymOkAt(d, t + bibDur + wBG));
+      if (t != null && t + bibDur <= bT) {
+        add("bib", d, t, bibDur, p.b, wBG, "nachher"); add("gym", d, t + bibDur + wBG, gymDur, wBG, p.g, "nach der Bib");
+        bibNeed--; gymNeed--; continue;
+      }
+    }
+    placeBibAlone(d);
+  }
+  for (const d of ordered) { if (bibNeed <= 0) break; if (!d.types.bib) placeBibAlone(d); }
+  if (bibNeed > 0) short.bib = bibNeed;
+
+  /* Gym an bereits eingetragene Bibliotheksblöcke hängen, sonst allein */
+  for (const d of days) {
+    if (gymNeed <= 0) break;
+    if (!gymOK(d)) continue;
+    const p = pads(d);
+    for (const b of d.busy.filter(x => x.type === "bib")) {
+      const after = b.e + wBG, before = b.s - wBG - gymDur;
+      let t = before >= gF ? findSlot(d, before, gT, gymDur, p.g, wBG, t => t === before && !rej("gym", d, t) && gymOkAt(d, t), b) : null;
+      if (t != null) { add("gym", d, t, gymDur, p.g, wBG, "vor der Bib"); gymNeed--; break; }
+      t = findSlot(d, after, gT, gymDur, wBG, p.g, t => t === after && !rej("gym", d, t) && gymOkAt(d, t), b);
+      if (t != null) { add("gym", d, t, gymDur, wBG, p.g, "nach der Bib"); gymNeed--; break; }
+    }
+  }
+  while (gymNeed > 0) {
+    const cands = days.filter(gymOK).sort((a, b) => score("gym", a) - score("gym", b));
+    let ok = false;
+    for (const d of cands) {
+      const p = pads(d);
+      const t = findSlot(d, gF, gT, gymDur, p.g, p.g, t => !rej("gym", d, t) && gymOkAt(d, t));
+      if (t != null) { add("gym", d, t, gymDur, p.g, p.g); ok = true; break; }
+    }
+    if (!ok) break;
+    gymNeed--;
+  }
+  if (gymNeed > 0) short.gym = gymNeed;
+
+  /* Primärbuch am Wochenende als Erstes am Morgen, solange die Aufmerksamkeit am höchsten ist */
+  {
+    const P = T.sach, pDur = Math.max(15, +P.dur || 45);
+    let pNeed = Math.max(0, (+P.perWeek || 0) - (counts.sach || 0));
+    if ("sach" in cap) pNeed = Math.min(pNeed, cap.sach);
+    for (const d of [days[5], days[6]]) {
+      if (pNeed <= 0) break;
+      if (d.closed || d.types.sach || skipped(d.key, "sach")) continue;
+      const t = findSlot(d, d.open, toMin(P.to || "23:00"), pDur, 0, 0, t => !rej("sach", d, t) && noLunch(d, t, pDur));
+      if (t != null) { add("sach", d, t, pDur, 0, 0); pNeed--; }
+    }
+  }
+
+  /* Spieltheorie: Wochenendprojekt mit Vorrang am Wochenende, zuerst in die Bibliothekszeit.
+     Steht montags ein Test an, wird der Sonntagsblock auf eine Stunde gekürzt. */
+  {
+    const G = T.gt, wk = [days[5], days[6]], frames0 = d => d.busy.filter(b => b.type === "bib");
+    const monTest = (st.tests || []).some(t => t.date === ymd(addDays(S.weekStart, 7)));
+    const gDur = d => (d.i === 6 && monTest) ? 60 : Math.max(15, +G.dur || 120);
+    const placeG = (d, optional) => {
+      if (d.closed || skipped(d.key, "gt") || (d.types.gt || 0) >= (PERDAY.gt || 1)) return false;
+      const dur = gDur(d);
+      for (const f of frames0(d)) {
+        const t = findSlot(d, f.s, f.e, dur, 0, 0, t => !rej("gt", d, t) && noLunch(d, t, dur), f);
+        if (t != null) { add("gt", d, t, dur, 0, 0, null, true); if (optional) out.at(-1).optional = true; return true; }
+      }
+      const t = findSlot(d, toMin(G.from), toMin(G.to), dur, 0, 0, t => !rej("gt", d, t) && noLunch(d, t, dur));
+      if (t == null) return false;
+      add("gt", d, t, dur, 0, 0); if (optional) out.at(-1).optional = true; return true;
+    };
+    let need = Math.max(0, (+G.perWeek || 0) - (counts.gt || 0));
+    for (const d of wk) { if (need <= 0) break; if (!d.types.gt && placeG(d, false)) need--; }
+    for (const d of wk) { if (need <= 0) break; if (placeG(d, false)) need--; }
+    if (need > 0) short.gt = need;
+    S.gtOptDays = wk; S.gtMonTest = monTest;
+    S.gtPlaceOpt = placeG;
+  }
+  S.lunchAt = {};
+  for (const d of days) {
+    const L = set.lunch;
+    if (d.closed || !L || !L.from || schoolOf(d.i, d.date)) continue;
+    const dur = +L.dur || 45, t = findSlot(d, toMin(L.from), toMin(L.to || "15:30"), dur, 0, 0);
+    if (t == null) continue;
+    d.busy.push({ s: t, e: t + dur, pre: 0, post: 0 }); S.lunchAt[d.key] = [t, t + dur];
+  }
+
+  /* Optionaler Spieltheorie-Block: hält am Wochenende Platz frei, wird aber nicht automatisch übernommen */
+  if (+T.gt.optional > 0 && S.gtPlaceOpt) {
+    let opt = +T.gt.optional;
+    for (const d of S.gtOptDays) { if (opt <= 0) break; if (d.i === 6 && S.gtMonTest) continue; if (S.gtPlaceOpt(d, true)) opt--; }
+  }
+
+  /* Übrige Blöcke nach Priorität: Lernzeit (Testvorabende zuerst), Fokus, Vorlesungen, Primärbuch, YouTube.
+     Lernzeit, Vorlesungen und YouTube gehen zuerst in freie Bibliothekszeit, dann in ihr eigenes Zeitfenster. */
+  const frames = d => d.busy.filter(b => b.type === "bib");
+  const cur = type => (counts[type] || 0) + out.filter(o => o.type === type).length;
+  /* Lernzeit nie direkt nach der Schule: Pause von lernGap Minuten ab Schulschluss */
+  const lo = (type, d) => (type === "lern" && d.schoolEnd != null) ? d.schoolEnd + (set.lernGap != null ? +set.lernGap : 120) : 0;
+  const tryDay = (type, d, dur, inside) => {
+    if (inside) {
+      for (const f of frames(d)) {
+        const t = findSlot(d, Math.max(f.s, lo(type, d)), f.e, dur, 0, 0, t => !rej(type, d, t) && noLunch(d, t, dur), f);
+        if (t != null) { add(type, d, t, dur, 0, 0, null, true); return true; }
+      }
+      return false;
+    }
+    const TT = T[type];
+    const t = findSlot(d, Math.max(toMin(TT.from), lo(type, d)), toMin(TT.to), dur, 0, 0, t => !rej(type, d, t));
+    if (t != null) { add(type, d, t, dur, 0, 0); return true; }
+    return false;
+  };
+  const placeN = (type, need, only) => {
+    const dur = Math.max(15, +T[type].dur || 60), lim = PERDAY[type] || 1;
+    let placed = 0;
+    for (const inside of (INNER[type] ? [true, false] : [false])) {
+      while (placed < need) {
+        const cands = (only || days).filter(d => !d.closed && (d.types[type] || 0) < lim && !skipped(d.key, type))
+          .sort((a, b) => score(type, a) - score(type, b));
+        let ok = false;
+        for (const d of cands) if (tryDay(type, d, dur, inside)) { ok = true; break; }
+        if (!ok) break;
+        placed++;
+      }
+    }
+    return placed;
+  };
+  let testEves = 0;
+  for (const tt of (st.tests || [])) {
+    const d = days.find(x => x.key === ymd(addDays(ymdToDate(tt.date), -1)));
+    if (!d || d.closed) continue;
+    testEves++;
+    if (!d.types.lern) placeN("lern", 1, [d]);
+  }
+  /* Aufgaben mit Frist: so früh wie möglich vor der Frist, in eine freie Lücke ab Nachmittag */
+  let taskShort = 0;
+  for (const t of (st.tasks || []).filter(x => !x.done && !x.eid).sort((a, b) => (a.due + (a.dueTime || "")).localeCompare(b.due + (b.dueTime || "")))) {
+    const dur = Math.max(15, +t.min || 60);
+    let ok = false;
+    for (const d of days) {
+      if (d.closed || d.key > t.due) continue;
+      let hi = toMin("22:30");
+      if (d.key === t.due) { if (!t.dueTime) continue; hi = Math.min(hi, toMin(t.dueTime) - 15); }
+      const s0 = findSlot(d, toMin("08:00"), hi, dur, 0, 0, x => !S.rejected.has(`task@${d.key}T${x}-${t.id}`));
+      if (s0 != null) { add("task", d, s0, dur, 0, 0); out.at(-1).taskId = t.id; out.at(-1).key += "-" + t.id; ok = true; break; }
+    }
+    if (!ok && t.due >= ymd(S.weekStart) && t.due <= ymd(addDays(S.weekStart, 6))) taskShort++;
+  }
+  if (taskShort) short.task = taskShort;
+  /* Primärbuch vor der Lernzeit: an Schultagen direkt nach der Schule als Übergang */
+  {
+    let need = Math.max(0, (+T.sach.perWeek || 0) - cur("sach"));
+    if ("sach" in cap) need = Math.min(need, cap.sach - out.filter(o => o.type === "sach").length);
+    const left = need - placeN("sach", Math.max(0, need));
+    if (left > 0) short.sach = left;
+  }
+  const lernNeed = Math.max(0, (+T.lern.perWeek || 0) + testEves - cur("lern"));
+  const lernPlaced = placeN("lern", lernNeed);
+  if (lernNeed - lernPlaced > 0) short.lern = lernNeed - lernPlaced;
+  for (const type of ["fokus"]) {
+    const need = Math.max(0, (+T[type].perWeek || 0) - cur(type));
+    const left = need - placeN(type, need);
+    if (left > 0) short[type] = left;
+  }
+  const order = set.lectureFirst === "va" ? ["va", "vb"] : ["vb", "va"];
+  let lecLeft = Math.max(0, (+set.lecturesPerWeek || 0) - cur("va") - cur("vb"));
+  const lecWant = Math.min(lecLeft, (cap.va || 0) + (cap.vb || 0));
+  let lecPlaced = 0;
+  for (const slot of order) {
+    if (lecLeft <= 0) break;
+    const p = placeN(slot, Math.min(lecLeft, cap[slot] || 0));
+    lecLeft -= p; lecPlaced += p;
+  }
+  if (lecWant - lecPlaced > 0) short.lec = lecWant - lecPlaced;
+  /* Die vorrangige Reihe bekommt die frühesten Vorlesungsplätze */
+  const lecs = out.filter(o => o.type === "va" || o.type === "vb").sort((a, b) => a.startDate - b.startDate);
+  let firstLeft = lecs.filter(o => o.type === order[0]).length;
+  for (const o of lecs) {
+    o.type = firstLeft > 0 ? order[0] : order[1]; firstLeft--;
+    o.key = `${o.type}@${ymd(o.date)}T${o.start}`;
+  }
+  for (const type of ["yt"]) {
+    let need = Math.max(0, (+T[type].perWeek || 0) - cur(type));
+    if (type in cap) need = Math.min(need, cap[type]);
+    const left = need - placeN(type, need);
+    if (left > 0) short[type] = left;
+  }
+  S.testEves = testEves;
+  let free = 0;
+  for (const d of days) {
+    if (d.closed) continue;
+    const iv = d.busy.map(b => [Math.max(d.open, b.s - (b.pre || 0)), Math.min(d.close, b.e + (b.post || 0))]).filter(x => x[1] > x[0]).sort((a, b) => a[0] - b[0]);
+    let cur0 = d.open, used = 0;
+    for (const [a, b] of iv) { if (b <= cur0) continue; used += b - Math.max(a, cur0); cur0 = Math.max(cur0, b); }
+    free += Math.max(0, d.close - d.open - used);
+  }
+  S.freeMin = free;
+  S.short = short;
+  return out.sort((a, b) => a.startDate - b.startDate);
+}
+function recompute() {
+  S.sugg = (S.mcp && S.eventsLoaded && !S.calErr) ? computeSuggestions() : [];
+  if (!(S.mcp && S.eventsLoaded && !S.calErr)) S.short = {};
+  S.labels = computeLabels();
+}
+
+/* ---------- Kalender ---------- */
+async function call(tool, input) {
+  const r = await S.mcp.callTool(SERVER, tool, input, { cache: false });
+  let p = r && r.payload;
+  if (typeof p === "string") { try { p = JSON.parse(p); } catch (_) {} }
+  return p;
+}
+async function read(tool, input) {
+  try { return await call(tool, input); }
+  catch (e) {
+    if (e && e.retryable) { await sleep(e.retryAfterMs || (700 + Math.random() * 900)); return call(tool, input); }
+    throw e;
+  }
+}
+async function listAll(input) {
+  const all = []; let token = null;
+  for (let i = 0; i < 4; i++) {
+    const p = await read("list_events", { ...input, pageSize: 250, ...(token ? { pageToken: token } : {}) });
+    all.push(...((p && p.events) || []));
+    token = p && p.nextPageToken;
+    if (!token) break;
+  }
+  return all;
+}
+function shortMsg(m) {
+  let s = String(m || "");
+  try { const j = JSON.parse(s); s = (j.error && (j.error.message || j.error.code)) || s; } catch (_) {}
+  return s.length > 160 ? s.slice(0, 157) + "…" : s;
+}
+function errText(e) {
+  switch (e && e.code) {
+    case "no_sync": return "Tagwerk speichert jetzt in deinem privaten GitHub-Repository, demselben wie Tabula. Auf diesem Gerät fehlt die Verbindung noch.";
+    case "auth": return "Der GitHub-Schlüssel ist ungültig oder abgelaufen. Trag unter Verbindung einen neuen ein.";
+    case "forbidden": return "Der GitHub-Schlüssel darf im Repository nicht schreiben.";
+    case "not_found": return "Das Repository wurde nicht gefunden. Prüf den Namen unter Verbindung.";
+    case "offline": return "Keine Verbindung zu GitHub. Tagwerk zeigt den zuletzt geladenen Stand.";
+    case "rate": return "GitHub bremst gerade. In einer Minute geht es weiter.";
+    case "conflict": return "Ein anderes Gerät hat gleichzeitig geändert. Lade neu und versuch es noch einmal.";
+    case "needs_reauth": return "Die Verbindung zu Google Calendar ist abgelaufen. Verbinde Google Calendar in claude.ai unter Einstellungen → Connectors neu.";
+    case "server_not_connected": case "server_not_found": return "Google Calendar ist nicht verbunden. Füge es in claude.ai unter Einstellungen → Connectors hinzu.";
+    case "selection_required": return "Es gibt mehrere Google-Calendar-Verbindungen. Wähle in claude.ai aus, welche Tagwerk nutzen soll.";
+    case "not_in_manifest": case "approval_required": case "consent_required": return "Tagwerk darf deinen Kalender noch nicht nutzen. Tippe auf „Zugriff erlauben“ und bestätige die Anfrage.";
+    case "blocked_by_policy": return "Der Kalenderzugriff ist für dieses Konto gesperrt.";
+    case "server_unavailable": return "Google Calendar antwortet gerade nicht. Versuch es in einem Moment noch einmal.";
+    case "tool_error": return "Google Calendar hat abgelehnt: " + shortMsg(e.message) + " Versuch es in einem Moment noch einmal.";
+    case "not_granted": case "capability_disabled": case "capability_removed": return "In dieser Ansicht gibt es keinen Kalenderzugriff. Öffne Tagwerk in claude.ai.";
+    default: return "Tagwerk ließ sich nicht laden" + (e && e.message ? ": " + shortMsg(e.message) : ".");
+  }
+}
+async function loadWeek() {
+  if (!S.mcp) return;
+  S.loading = true; renderHeader();
+  const startTime = localISO(S.weekStart, 0), endTime = localISO(addDays(S.weekStart, 7), 0);
+  try {
+    const [evs, hol] = await Promise.all([
+      listAll({ startTime, endTime, eventType: ["DEFAULT", "OUT_OF_OFFICE", "FOCUS_TIME", "FROM_GMAIL", "BIRTHDAY"] }),
+      listAll({ calendarId: HOLI, startTime, endTime }).catch(() => null)
+    ]);
+    S.events = evs.map(parseEvent).filter(Boolean);
+    const H = {};
+    for (const h of (hol || [])) {
+      if (!h || !h.start || !h.start.date) continue;
+      const desc = h.description || "";
+      if (/^Gedenktag/.test(desc)) continue;
+      const free = (/^Gesetzlicher Feiertag/.test(desc) && !/Halbtägig/.test(desc)) || /Hessen/.test(desc);
+      if (!free) continue;
+      H[h.start.date.slice(0, 10)] = { name: (h.summary || "").replace(/\s*\(regionaler Feiertag\)/, ""), desc, free };
+    }
+    S.holidays = H; S.calErr = null; S.eventsLoaded = true; S.loadedAt = new Date();
+    let changed = autoDone(S.events);
+    if (!S.pastChecked && S.storeLoaded) {
+      S.pastChecked = true;
+      try {
+        const past = await listAll({ startTime: localISO(addDays(new Date(), -14), 0), endTime: localISO(S.weekStart, 0) });
+        if (autoDone(past.map(parseEvent).filter(Boolean))) changed = true;
+      } catch (_) {}
+    }
+    if (changed) persist();
+  } catch (e) {
+    S.calErr = e;
+  }
+  S.loading = false;
+  recompute(); render();
+  if (S.eventsLoaded && !S.calErr) { syncPlan(); syncEvents(); }
+}
+/* Tagesplan für den Morgenbericht: eingetragene Blöcke und Termine je Tag */
+function planEntries() {
+  const days = {};
+  for (let i = 0; i < 7; i++) {
+    const date = addDays(S.weekStart, i), key = ymd(date), list = [];
+    const sch = schoolOf(i, date);
+    if (sch) list.push({ start: hhmm(sch[0]), end: hhmm(sch[1]), kind: "schule", label: "Schule" });
+    for (const ev of S.events) {
+      const seg = segmentsForDay(ev, date); if (!seg) continue;
+      if (ev.allDay) { list.push({ allDay: true, kind: ev.birthday ? "geburtstag" : "termin", label: cleanTitle(ev.title) }); continue; }
+      const base = { start: hhmm(seg[0]), end: hhmm(Math.min(seg[1], 1439)) };
+      if (ev.type) {
+        const x = blockText(ev.type, S.labels["e:" + ev.id], ev.title, date, ev.type === "gym" ? gymPair(date, seg[0], seg[1]) : null);
+        list.push({ ...base, kind: "block", type: ev.type, label: x.t, sub: x.s || "", done: isDone(ev) });
+      } else list.push({ ...base, kind: "termin", label: ev.title });
+    }
+    list.sort((a, b) => (a.allDay ? -1 : 0) - (b.allDay ? -1 : 0) || String(a.start).localeCompare(String(b.start)));
+    const wx = wxFor(key);
+    days[key] = { items: list, wet: walkDay(i) ? wx.wet : false };
+  }
+  return days;
+}
+/* Kalendereinträge von YouTube, Spieltheorie und Vorlesungen an den aktuellen Plan angleichen: Titel und Links */
+async function syncEvents() {
+  if (S.syncingEv) return;
+  S.syncingEv = true;
+  try {
+    const now = new Date();
+    for (const ev of S.events) {
+      if (!["yt", "gt", "va", "vb"].includes(ev.type) || ev.allDay || ev.end <= now || isDone(ev)) continue;
+      const lab = S.labels["e:" + ev.id];
+      if (!lab) continue;
+      const summary = summaryFor(ev.type, lab), description = descFor(ev.type, lab);
+      if (summary === ev.title && description === ev.desc) continue;
+      try { await call("update_event", { eventId: ev.id, summary, description, notificationLevel: "NONE" }); ev.title = summary; ev.desc = description; } catch (_) {}
+    }
+  } finally { S.syncingEv = false; }
+}
+async function syncPlan() {
+  if (!S.planRef) return;
+  try { await S.planReady; } catch (_) {}
+  const cutoff = ymd(addDays(new Date(), -14));
+  const merged = { ...(S.planDays || {}), ...planEntries() };
+  for (const k of Object.keys(merged)) if (k < cutoff) delete merged[k];
+  const json = JSON.stringify(merged);
+  if (json === S.planJson) return;
+  S.planJson = json; S.planDays = merged;
+  try { await S.planRef.set({ updatedAt: new Date().toISOString(), days: merged }); } catch (_) {}
+}
+function summaryFor(type, lab) {
+  const b = S.store.books;
+  if (type === "va" || type === "vb") return lab && lab.qtitle ? `${typeLabel(type)} · ${lab.qtitle}` : `${typeLabel(type)} · ${type === "vb" ? "Lektüre" : "Vorlesung"}`;
+  if (type === "yt") return `YouTube · ${(lab && lab.title && lab.title !== "Liste leer") ? lab.title : "Video"}`;
+  if (type === "task") return `Aufgabe · ${lab && lab.title ? lab.title : "Aufgabe"}`;
+  if (type === "gt") return `Spieltheorie · ${(lab && lab.title && lab.title !== "Plan leer") ? lab.title : "nächster Schritt"}`;
+  if (type === "sach") return b.sach ? `Primärbuch · ${b.sach}` : "Primärbuch";
+  if (type === "abend") return b.abend ? `Sekundärbuch · ${b.abend}` : "Sekundärbuch";
+  if (type === "lern") { const ta = lab && lab.test; return ta ? `Lernzeit · ${ta.subject}` : "Lernzeit"; }
+  return META[type].label;
+}
+function descFor(type, lab, date, start, dur) {
+  const lines = [`[tagwerk:${type}]`];
+  if ((type === "yt" || type === "gt") && lab && lab.urls) lines.push(...lab.urls);
+  if (type === "gt" && S.store.gtDoc) lines.push(`Projektplan: ${S.store.gtDoc}`);
+  if (type === "task" && lab && lab.taskId) { lines.push(`aufgabe:${lab.taskId}`); lines.push(lab.sub || ""); }
+  if ((type === "va" || type === "vb") && lab) { if (lab.urls) lines.push(...lab.urls); lines.push(`${typeLabel(type)}: ${lab.sub}`); }
+  if (type === "lern" && lab && lab.test) lines.push(`Test ${lab.test.when}: ${lab.test.subject}`);
+  if (type === "bib" && date) {
+    const inside = S.sugg.filter(s => s.inner && s.i === (date.getDay() + 6) % 7 && s.start >= start && s.start < start + dur)
+      .map(s => `${hhmm(s.start)} ${blockText(s.type, S.labels["s:" + s.key], "", s.date).t}`);
+    if (inside.length) lines.push("In der Bibliothek: " + inside.join(", "));
+  }
+  lines.push("Eingeplant mit Tagwerk");
+  return lines.join("\n");
+}
+async function createBlock(type, date, start, dur, lab, pre, inner) {
+  if (!lab) {
+    const tmp = [{ key: "tmp", type, start: dateAt(date, start), min: dur }];
+    lab = computeLabels(tmp).tmp;
+  }
+  if (type === "lern") { const ta = testAhead(date); lab = { ...(lab || {}), test: ta && ta.when === "morgen" ? ta : null }; }
+  const remind = Math.max(0, +S.store.settings.remind || 5) + Math.max(0, +pre || 0);
+  const res = await call("create_event", {
+    summary: summaryFor(type, lab), startTime: localISO(date, start), endTime: localISO(date, start + dur),
+    description: descFor(type, lab, date, start, dur), colorId: META[type].color,
+    ...(inner || type === "bib" ? { location: "Bibliothek" } : {}),
+    overrideReminders: [{ method: "popup", minutes: remind }]
+  });
+  if (type === "task" && lab && lab.taskId) {
+    const t = (S.store.tasks || []).find(x => x.id === lab.taskId);
+    const id = res && (res.id || (res.event && res.event.id));
+    if (t) { t.eid = id || "pending"; persist(); }
+  }
+  return res;
+}
+function writeFailed(e) {
+  const ambiguous = e && (e.code === "server_unavailable" || e.code === "upstream_error" || !e.code);
+  toast(ambiguous ? "Unklar, ob die Änderung gespeichert wurde. Ich lade neu, prüf das Ergebnis." : errText(e));
+}
+
+/* ---------- Spiegel für Daimonion ----------
+   Tagwerk legt einen kompakten Stand seiner Planungsregeln in einen versteckten Kalendereintrag am 1.1.2000.
+   Daimonion (Davids Agent auf dem Mac) liest ihn dort, weil es an Tagwerks eigenen Speicher nicht herankommt. */
+const MIRROR_TAG = "[famulus-stand]";
+let mirrorTimer = null, mirrorBusy = false;
+function mirrorDigest() {
+  const st = S.store || {}, se = st.settings || {}, today = ymd(new Date());
+  const fut = o => Object.fromEntries(Object.entries(o || {}).filter(([k]) => k >= today));
+  const lect = {}; for (const [k, v] of Object.entries(st.lectures || {})) lect[k] = { name: v && v.name };
+  return { v: 1, school: se.school, schoolEx: fut(se.schoolEx), schoolOff: fut(se.schoolOff), afterSchool: se.afterSchool, buffer: se.buffer,
+    dayEnd: se.dayEnd, weekendStart: se.weekendStart, lunch: se.lunch, walk: se.walk, remind: se.remind, lernGap: se.lernGap, skip: fut(se.skip),
+    types: st.types, lectures: lect, tests: (st.tests || []).filter(t => t.date >= today).map(t => ({ date: t.date, subject: t.subject })),
+    tasks: (st.tasks || []).filter(t => !t.done).map(t => ({ title: t.title, min: t.min, due: t.due })) };
+}
+function scheduleMirror() {
+  return;   /* Daimonion liest Tagwerk jetzt direkt aus dem Repository */
+  if (!S.mcp || !S.storeLoaded || S.calErr) return;
+  clearTimeout(mirrorTimer); mirrorTimer = setTimeout(syncMirror, 4000);
+}
+async function syncMirror() {
+  if (mirrorBusy) { scheduleMirror(); return; }
+  mirrorBusy = true;
+  try {
+    const d = mirrorDigest(), body = JSON.stringify(d);
+    if (body === S.mirrorBody) return;
+    const desc = MIRROR_TAG + "\n" + JSON.stringify({ ...d, at: new Date().toISOString() });
+    if (desc.length > 7800) return;
+    let id = S.mirrorId;
+    if (!id) {
+      const p = await read("list_events", { startTime: "2000-01-01T00:00:00", endTime: "2000-01-03T00:00:00", pageSize: 20 });
+      const hit = ((p && p.events) || []).find(e => String(e.description || "").startsWith(MIRROR_TAG));
+      if (hit) id = hit.id;
+    }
+    if (id) {
+      try { await call("update_event", { eventId: id, summary: "Tagwerk · Stand für Daimonion (nicht löschen)", description: desc, notificationLevel: "NONE" }); }
+      catch (e) { if (e && e.code === "tool_error") id = null; else throw e; }
+    }
+    if (!id) {
+      const p = await call("create_event", { summary: "Tagwerk · Stand für Daimonion (nicht löschen)", startTime: "2000-01-01T00:00:00", endTime: "2000-01-02T00:00:00",
+        allDay: true, availability: "AVAILABILITY_FREE", useDefaultReminders: false, notificationLevel: "NONE", description: desc });
+      id = (p && (p.id || (p.event && p.event.id))) || null;
+    }
+    S.mirrorId = id; S.mirrorBody = body;
+  } catch (e) { /* Der Spiegel ist Beiwerk; Tagwerk arbeitet ohne ihn weiter. */ }
+  finally { mirrorBusy = false; }
+}
+
+/* ---------- Speichern ---------- */
+function dbErrText(e) {
+  switch (e && e.code) {
+    case "quota_exceeded": return "Der Speicher von Tagwerk ist voll. Entferne gesehene Videos.";
+    case "resource_exhausted": return "Zu viele Änderungen auf einmal. Warte kurz und versuch es erneut.";
+    case "revoked": case "not_granted": case "capability_disabled": return "Speichern ist in dieser Ansicht nicht möglich.";
+    default: return "Speichern fehlgeschlagen. Lade die Seite neu und versuch es erneut.";
+  }
+}
+function persist() {
+  if (!S.ref) { toast("Speichern ist in dieser Ansicht nicht möglich. Änderungen gehen beim Neuladen verloren."); return Promise.resolve(); }
+  const data = clone(S.store);
+  S.writes = S.writes.then(() => S.ref.set(data)).catch(e => toast(dbErrText(e)));
+  return S.writes;
+}
+
+/* ---------- Darstellung ---------- */
+let toastTimer = null;
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 4200);
+}
+function weekRangeText() {
+  const a = S.weekStart, b = addDays(a, 6);
+  return a.getMonth() === b.getMonth()
+    ? `${a.getDate()}.–${b.getDate()}. ${MON[b.getMonth()]} ${b.getFullYear()}`
+    : `${a.getDate()}. ${MON[a.getMonth()]} – ${b.getDate()}. ${MON[b.getMonth()]} ${b.getFullYear()}`;
+}
+function renderHeader() {
+  $("#kw").textContent = "KW " + isoWeek(S.weekStart);
+  $("#range").textContent = weekRangeText();
+  const st = $("#status");
+  st.textContent = S.loading ? "Kalender wird geladen …" : (S.busy ? "Wird eingetragen …" : (S.loadedAt ? `Stand ${hhmm(minOfDay(S.loadedAt))}` : ""));
+  const btn = $("#acceptAll");
+  const nReq = S.sugg.filter(s => !s.optional).length;
+  btn.textContent = nReq ? `Alle übernehmen (${nReq})` : "Alle übernehmen";
+  btn.disabled = !nReq || S.busy;
+  const ban = $("#banner");
+  if (S.calErr) {
+    if (S.calErr.code === "no_sync" || S.calErr.code === "auth" || S.calErr.code === "not_found") { ban.innerHTML = `<div class="banner"><p>${esc(errText(S.calErr))}</p><button class="btn primary" data-act="syncSheet">Verbinden</button></div>`; return; }
+    const allow = ["not_in_manifest", "approval_required", "consent_required"].includes(S.calErr.code);
+    const retry = !["not_granted", "capability_disabled", "capability_removed", "blocked_by_policy"].includes(S.calErr.code);
+    ban.innerHTML = `<div class="banner"><p>${esc(errText(S.calErr))}</p>${retry ? `<button class="btn" data-act="reload">${allow ? "Zugriff erlauben" : "Erneut versuchen"}</button>` : ""}</div>`;
+  } else if (TW.offline) {
+    ban.innerHTML = `<div class="banner"><p>${esc(errText({ code: "offline" }))}</p><button class="btn" data-act="reload">Erneut versuchen</button></div>`;
+  } else ban.innerHTML = "";
+}
+function layoutLanes(items) {
+  items.sort((a, b) => a.s - b.s || b.e - a.e);
+  let cluster = [], ends = [], cEnd = -1;
+  const flush = () => { for (const it of cluster) it.n = ends.length; cluster = []; ends = []; cEnd = -1; };
+  for (const it of items) {
+    if (cluster.length && it.s >= cEnd) flush();
+    let lane = ends.findIndex(e => e <= it.s);
+    if (lane < 0) { lane = ends.length; ends.push(it.e); } else ends[lane] = it.e;
+    it.lane = lane; cluster.push(it); cEnd = Math.max(cEnd, it.e);
+  }
+  flush();
+}
+function pos(s, e, lane, n, inset) {
+  const a = Math.max(s, H0 * 60), b = Math.min(e, H1 * 60);
+  if (b <= a) return null;
+  const x = inset ? 18 : 2;
+  return `top:calc(var(--pph) * ${((a - H0 * 60) / 60).toFixed(4)});height:calc(var(--pph) * ${((b - a) / 60).toFixed(4)} - 2px);left:calc(${lane} * (100% - ${x + 2}px) / ${n} + ${x}px);width:calc((100% - ${x + 2}px) / ${n} - 2px)`;
+}
+function blockText(type, lab, title, date, pair) {
+  const b = S.store.books, W = S.store.settings.walk || {};
+  if (type === "yt") return { t: lab ? lab.title : cleanTitle(title).replace(/^YouTube · /, ""), s: lab ? lab.sub : "" };
+  if (type === "task") return { t: lab ? lab.title : cleanTitle(title).replace(/^Aufgabe · /, ""), s: lab ? lab.sub : "Aufgabe" };
+  if (type === "gt") return { t: "Spieltheorie", s: lab ? lab.title : cleanTitle(title).replace(/^Spieltheorie · /, "") };
+  if (type === "va" || type === "vb") return { t: typeLabel(type), s: lab ? (lab.qtitle ? `${lab.qtitle} · ${lab.sub}` : lab.sub) : (type === "vb" ? "Lektüre" : "Vorlesung") };
+  if (type === "sach") return { t: "Primärbuch", s: b.sach };
+  if (type === "abend") return { t: "Sekundärbuch", s: b.abend };
+  if (type === "lern") {
+    const ta = date ? testAhead(date) : null;
+    return { t: "Lernzeit", s: ta ? `${ta.subject}, Test ${ta.when}` : "Prüfungsvorbereitung" };
+  }
+  if (type === "bib") {
+    const parts = [];
+    if (date && walkDay((date.getDay() + 6) % 7)) {
+      const wx = wxFor(ymd(date));
+      parts.push(wx.wet ? "Regen angesagt, zu Fuß" : `zu Fuß, ${+W.bib || 0} min`);
+    }
+    if (pair === "nachher") parts.push("danach Gym");
+    if (pair === "vorher") parts.push("vorher Gym");
+    return { t: "Bibliothek", s: parts.join(" · ") };
+  }
+  if (type === "gym") return { t: "Gym", s: pair ? `${pair}, ${+W.bibGym || 0} min Weg` : "" };
+  return { t: META[type].label, s: "" };
+}
+function gymPair(date, s, e) {
+  const W = S.store.settings.walk || {}, g = (+W.bibGym || 0) + 15;
+  for (const ev of S.events) {
+    if (ev.type !== "bib" || ev.allDay) continue;
+    const seg = segmentsForDay(ev, date); if (!seg) continue;
+    if (s - seg[1] >= 0 && s - seg[1] <= g) return "nach der Bib";
+    if (seg[0] - e >= 0 && seg[0] - e <= g) return "vor der Bib";
+  }
+  return null;
+}
+function renderGrid() {
+  const box = $("#plan");
+  const now = new Date(), todayKey = ymd(now), today0 = dayStart(now);
+  let tabs = "", heads = `<div class="head-corner"></div>`, cols = `<div class="axis" aria-hidden="true">`;
+  for (let h = H0; h < H1; h++) cols += `<span style="top:calc(var(--pph) * ${h - H0})">${pad(h)}</span>`;
+  cols += `</div>`;
+  for (let i = 0; i < 7; i++) {
+    const date = addDays(S.weekStart, i), key = ymd(date), isT = key === todayKey, on = i === S.activeDay;
+    const hol = S.holidays[key], sch = schoolOf(i, date);
+    tabs += `<button class="tab${on ? " on" : ""}${isT ? " today" : ""}" data-act="tab" data-i="${i}" aria-pressed="${on}"><b>${date.getDate()}</b><span>${DSHORT[i]}</span></button>`;
+    heads += `<div class="head${isT ? " today" : ""}${on ? " on" : ""}"><div class="dl"><span class="d">${DSHORT[i]} ${date.getDate()}.</span><span class="lat">dies ${DLAT[i]}</span></div><div class="chips">`;
+    if (hol) heads += `<span class="chip hol" title="${esc(hol.desc)}">${esc(hol.name)}</span>`;
+    if (i < 5 && !(hol && hol.free)) heads += `<button class="chip tog" data-act="school" data-date="${key}" aria-pressed="${!!sch}" title="Schultag umschalten">${sch ? "Schule" : "schulfrei"}</button>`;
+    if (walkDay(i) && date >= today0) {
+      const wx = wxFor(key);
+      const txt = wx.manual ? (wx.wet ? "nass (manuell)" : "trocken (manuell)") : wx.w ? `${wx.w.kind === "snow" ? "Schnee" : "Regen"} ${Math.round(+wx.w.pop || 0)} %` : "Wetter offen";
+      heads += `<button class="chip wx${wx.wet ? " wet" : ""}" data-act="wx" data-date="${key}" title="Für den Fußweg zur Bib: tippen schaltet zwischen Vorhersage, nass und trocken">${txt}</button>`;
+    }
+    for (const ev of S.events) if (ev.allDay && segmentsForDay(ev, date)) heads += `<button class="chip ${ev.birthday ? "geb" : ev.type === "test" ? "test" : "ext"}" data-act="ev" data-id="${esc(ev.id)}">${esc(ev.birthday && ev.type === "geb" ? cleanTitle(ev.title) : ev.title)}</button>`;
+    const evTests = new Set(S.events.filter(e => e.type === "test" && e.allDay && segmentsForDay(e, date)).map(e => e.title));
+    for (const t of (S.store.tests || [])) if (t.date === key && !evTests.has(`Test: ${t.subject}`)) heads += `<span class="chip test">Test: ${esc(t.subject)}</span>`;
+    heads += `</div></div>`;
+
+    const items = [], frames = [];
+    if (sch) { const ls = lessonsOf(i, date); if (ls) for (const l of ls) items.push({ kind: "school", s: l.s, e: l.e, les: l }); else items.push({ kind: "school", s: sch[0], e: sch[1] }); }
+    const lu = lunchOf(i, date);
+    if (lu) items.push({ kind: "lunch", s: lu[0], e: lu[1] });
+    for (const ev of S.events) {
+      if (ev.allDay) continue;
+      const seg = segmentsForDay(ev, date);
+      if (seg) (ev.type === "bib" ? frames : items).push({ kind: "ev", ev, s: seg[0], e: seg[1] });
+    }
+    for (const sg of S.sugg) if (sg.i === i) (sg.type === "bib" ? frames : items).push({ kind: "sg", sg, s: sg.start, e: sg.start + sg.dur });
+    for (const it of items) it.inset = frames.some(f => it.s < f.e && it.e > f.s);
+    layoutLanes(items);
+    let html = "";
+    for (const f of frames) {
+      const p = pos(f.s, f.e, 0, 1);
+      if (!p) continue;
+      const tm = `${hhmm(f.s)}–${hhmm(f.e)}`;
+      const x = f.kind === "ev"
+        ? blockText("bib", null, f.ev.title, date, null)
+        : blockText("bib", null, "", f.sg.date, f.sg.pair);
+      const sugg = f.kind === "sg";
+      html += `<button class="blk frame${sugg ? " fsugg" : ""}${f.kind === "ev" && isDone(f.ev) ? " done" : ""}" style="${p};--c:${colorVar("bib")}" ${sugg ? `data-act="sg" data-key="${esc(f.sg.key)}"` : `data-act="ev" data-id="${esc(f.ev.id)}"`} aria-label="${sugg ? "Vorschlag " : ""}Bibliothek ${tm}${x.s ? ", " + esc(x.s) : ""}"><span class="fl-lab">${f.kind === "ev" && isDone(f.ev) ? "✓ " : ""}Bibliothek${sugg ? " · Vorschlag" : ""} ${tm}</span></button>`;
+    }
+    for (const it of items) {
+      const p = pos(it.s, it.e, it.lane, it.n, it.inset);
+      if (!p) continue;
+      const sm = (it.e - it.s) <= 45 ? " sm" : "";
+      const tm = `${hhmm(it.s)}–${hhmm(Math.min(it.e, 1439))}`;
+      if (it.kind === "school") {
+        const L = it.les;
+        html += `<div class="blk school${sm}${L && L.test ? " exam" : ""}" style="${p}"><span class="tm">${tm}${L && L.test ? " · Test" : ""}</span><span class="t">${L ? esc(L.t) : "Schule"}</span>${L && L.sub ? `<span class="s">${esc(L.sub)}</span>` : ""}</div>`;
+      } else if (it.kind === "lunch") {
+        html += `<div class="blk school sm" style="${p}"><span class="tm">${tm}</span><span class="t">Mittag</span></div>`;
+      } else if (it.kind === "ev") {
+        const ev = it.ev;
+        if (ev.type) {
+          const x = blockText(ev.type, S.labels["e:" + ev.id], ev.title, date, ev.type === "gym" ? gymPair(date, it.s, it.e) : null);
+          html += `<button class="blk plan${isDone(ev) ? " done" : ""}${sm}" style="${p};--c:${colorVar(ev.type)}" data-act="ev" data-id="${esc(ev.id)}"><span class="tm">${tm}</span><span class="t">${esc(x.t)}</span>${x.s ? `<span class="s">${esc(x.s)}</span>` : ""}</button>`;
+        } else {
+          html += `<button class="blk ext${sm}" style="${p}" data-act="ev" data-id="${esc(ev.id)}"><span class="tm">${tm}</span><span class="t">${esc(ev.title)}</span></button>`;
+        }
+      } else {
+        const sg = it.sg, x = blockText(sg.type, S.labels["s:" + sg.key], "", sg.date, sg.pair);
+        html += `<button class="blk sugg${sg.optional ? " opt" : ""}${sm}" style="${p};--c:${colorVar(sg.type)}" data-act="sg" data-key="${esc(sg.key)}"><span class="tm">${sg.optional ? "Optional" : "Vorschlag"} · ${tm}</span><span class="t">${esc(x.t)}</span>${x.s ? `<span class="s">${esc(x.s)}</span>` : ""}</button>`;
+      }
+    }
+    if (isT) {
+      const m = minOfDay(now);
+      if (m >= H0 * 60 && m <= H1 * 60) html += `<div class="now" style="top:calc(var(--pph) * ${((m - H0 * 60) / 60).toFixed(4)})"></div>`;
+    }
+    if (i === 0 && !S.eventsLoaded && !S.calErr) html += `<div class="loading-note">Kalender wird geladen …</div>`;
+    cols += `<div class="col${on ? " on" : ""}${date < today0 ? " past" : ""}" data-day="${i}" aria-label="${DLONG[i]}">${html}</div>`;
+  }
+  box.classList.toggle("single", S.single);
+  box.innerHTML = `<div class="tabs" role="tablist">${tabs}</div><div class="heads">${heads}</div><div class="body">${cols}</div>`;
+}
+function renderSide() {
+  const side = $("#side");
+  if (side.contains(document.activeElement) && /^(INPUT|SELECT)$/.test(document.activeElement.tagName)) { S.sidePending = true; return; }
+  S.sidePending = false;
+  const st = S.store, counts = {}, sugc = {};
+  for (const ev of S.events) if (ev.type) counts[ev.type] = (counts[ev.type] || 0) + 1;
+  for (const s of S.sugg) sugc[s.type] = (sugc[s.type] || 0) + 1;
+  let soll = "";
+  const pipRow = (set, sg, target) => { let s = ""; for (let k = 0; k < Math.max(target, set + sg); k++) s += `<i class="pip${k < set ? " set" : (k < set + sg ? " sug" : "")}"></i>`; return s; };
+  for (const t of TYPE_ORDER) {
+    if (t === "abend" || t === "vb") continue;
+    if (t === "va") {
+      const set = (counts.va || 0) + (counts.vb || 0), sg = (sugc.va || 0) + (sugc.vb || 0), target = +st.settings.lecturesPerWeek || 0;
+      const first = st.settings.lectureFirst === "va" ? "va" : "vb";
+      let note = lectureRemain(first) > 0 ? `zuerst ${typeLabel(first)}` : "nach Reihenfolge";
+      if (S.short.lec) note += ` · kein Platz für ${S.short.lec}`;
+      soll += `<div class="srow" style="--c:${colorVar("va")}"><span class="dot"></span><span class="nm"><b>Vorlesungen</b><small>${esc(note)}</small></span><span class="pips" aria-label="${set} eingetragen, ${sg} vorgeschlagen, Soll ${target}">${pipRow(set, sg, target)}</span><span class="step"><button data-act="sollLec" data-d="-1" aria-label="Vorlesungen weniger">−</button><span class="mono">${target}</span><button data-act="sollLec" data-d="1" aria-label="Vorlesungen mehr">+</button></span></div>`;
+      continue;
+    }
+    const T = st.types[t], set = counts[t] || 0, sg = sugc[t] || 0, target = (+T.perWeek || 0) + (t === "lern" ? (S.testEves || 0) : 0);
+    const total = Math.max(target, set + sg);
+    let pips = "";
+    for (let k = 0; k < total; k++) pips += `<i class="pip${k < set ? " set" : (k < set + sg ? " sug" : "")}"></i>`;
+    let note = `${T.dur} min`;
+    if ((t === "va" || t === "vb") && lectureRemain(t) <= 0) note = st.lectures[t].total ? "Reihe abgeschlossen" : "keine Reihe";
+    else if (t === "yt" && !ytQueue().some(i => i.rest > 0)) note = "Liste leer";
+    else if (S.short[t]) note += ` · kein Platz für ${S.short[t]}`;
+    if (t === "bib") {
+      const t0 = dayStart(new Date());
+      const wet = [0, 1, 2, 3, 4, 5].filter(i => { const d = addDays(S.weekStart, i); return d >= t0 && wxFor(ymd(d)).wet; }).length;
+      if (wet) note += ` · ${wet === 1 ? "1 Regentag" : wet + " Regentage"} ausgelassen`;
+    }
+    if (t === "fokus") note = `abends · ${note}`;
+    if (t === "gt") note = `Sa/So · ${note}${+T.optional ? ` · bis zu ${+T.optional} optional` : ""}`;
+    if (t === "lern" && S.testEves) note += ` · +${S.testEves} vor Tests`;
+    if (t === "lern" || t === "yt") note += " · auch in der Bib";
+    soll += `<div class="srow" style="--c:${colorVar(t)}"><span class="dot"></span><span class="nm"><b>${esc(typeLabel(t))}</b><small>${esc(note)}</small></span><span class="pips" aria-label="${set} eingetragen, ${sg} vorgeschlagen, Soll ${target}">${pips}</span><span class="step"><button data-act="soll" data-type="${t}" data-d="-1" aria-label="${esc(typeLabel(t))} weniger">−</button><span class="mono">${+T.perWeek || 0}</span><button data-act="soll" data-type="${t}" data-d="1" aria-label="${esc(typeLabel(t))} mehr">+</button></span></div>`;
+  }
+  const hasAbend = S.events.some(e => e.type === "abend");
+  soll += `<div class="srow" style="--c:${colorVar("abend")}"><span class="dot"></span><span class="nm"><b>Sekundärbuch</b><small>täglich ${esc(st.types.abend.fixed)} Uhr, ${st.types.abend.dur} min</small></span><span></span>${hasAbend ? `<span class="mono" style="font-size:12px;color:var(--muted)">läuft</span>` : `<button class="btn" data-act="abendSeries" ${S.mcp && S.eventsLoaded ? "" : "disabled"}>Serie eintragen</button>`}</div>`;
+
+  let lec = "";
+  for (const slot of ["va", "vb"]) {
+    const L = st.lectures[slot], rem = lectureRemain(slot), total = +L.total || 0;
+    const pct = total ? Math.round((1 - rem / total) * 100) : 0;
+    lec += `<div class="lec" style="--c:${colorVar(slot)}"><div class="lec-h"><span class="dot"></span><b>${esc(typeLabel(slot))}</b><span class="mono">${total ? `noch ${fmtH(rem)} von ${fmtH(total)} h` : "keine Reihe"}</span></div><div class="meter" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>${rem <= 0 ? `<div><button class="btn" data-act="lecNext" data-slot="${slot}">Nächste Reihe starten</button></div>` : ""}</div>`;
+  }
+  const q = ytQueue(), open = q.filter(i => i.rest > 0), seen = q.filter(i => i.rest <= 0);
+  let yt = `<ol class="yt">`;
+  let ytMore = "";
+  open.forEach((it, k) => {
+    if (k === 5) { yt += `</ol><details class="seen more"><summary>Weitere ${open.length - 5}</summary><ol class="yt" start="6">`; ytMore = "</ol></details>"; }
+    yt += `<li><span class="n">${k + 1}</span>${it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title)}</a>` : `<span>${esc(it.title)}</span>`}<span class="mono">${it.rest < (+it.min || 0) ? `noch ${it.rest}` : it.rest} min</span><button class="mini" data-act="ytUp" data-id="${esc(it.id)}" aria-label="Nach oben" ${k === 0 ? "disabled" : ""}>↑</button><button class="mini" data-act="ytDel" data-id="${esc(it.id)}" aria-label="Entfernen">✕</button></li>`;
+  });
+  yt += ytMore ? `${ytMore}` : `</ol>`;
+  if (!open.length) yt = `<p class="note">Noch keine Videos. Füge unten eins hinzu.</p>`;
+  if (seen.length) yt += `<details class="seen"><summary>Gesehen (${seen.length})</summary><ul>${seen.map(i => `<li>${esc(i.title)} <button class="mini" data-act="ytDel" data-id="${esc(i.id)}" aria-label="Aus der Liste löschen">✕</button></li>`).join("")}</ul></details>`;
+
+  const tab = S.sideTab || "soll", nTask = (st.tasks || []).filter(t => !t.done).length, nTest = (st.tests || []).filter(t => t.date >= ymd(new Date())).length;
+  side.dataset.tab = tab;
+  const tb = (k, l, n) => `<button class="stab${tab === k ? " on" : ""}" data-act="sideTab" data-t="${k}" aria-pressed="${tab === k}">${l}${n ? ` <span>${n}</span>` : ""}</button>`;
+  side.innerHTML = `<nav class="stabs" aria-label="Seitenleiste">${tb("soll", "Soll")}${tb("q", "Listen")}${tb("task", "Aufgaben", nTask)}${tb("test", "Tests", nTest)}${tb("geb", "Geburtstage")}</nav>
+  <section class="panel" data-tab="soll" aria-labelledby="h-soll"><div class="ph"><h2 id="h-soll">Wochensoll</h2><span class="mono" style="font-size:12px;color:var(--muted)">KW ${isoWeek(S.weekStart)}</span></div>
+    ${loadHtml()}
+    <div class="soll">${soll}</div>
+    <p class="note">Volle Kästchen sind eingetragen, gestrichelte vorgeschlagen.</p>
+  </section>
+  <section class="panel" data-tab="q" aria-labelledby="h-q"><div class="ph"><h2 id="h-q">Warteschlangen</h2></div>
+    <div class="eyebrow">Vorlesungen</div>${lec}
+    <div class="eyebrow">YouTube</div>${yt}
+    <form class="form" data-form="yt">
+      <input type="text" id="yt-url" placeholder="YouTube-Link" autocomplete="off" aria-label="YouTube-Link">
+      <div class="row"><input type="text" id="yt-title" placeholder="Titel" style="flex:1 1 150px" aria-label="Titel"><input type="number" id="yt-min" min="5" step="5" value="60" style="width:84px" aria-label="Länge in Minuten"><button class="btn" type="submit">Hinzufügen</button></div>
+    </form>
+    <div class="eyebrow">Spieltheorie</div>${gtHtml()}
+    <div class="eyebrow">Bücher</div>
+    <div class="form" style="margin-top:0">
+      <label class="fl" for="book-sach">Primärbuch<input type="text" id="book-sach" data-book="sach" value="${esc(st.books.sach)}" placeholder="Titel eintragen"></label>${st.books.sachNext ? `<p class="note" style="margin:0">Danach: ${esc(st.books.sachNext)} <button class="mini" style="width:auto;padding-inline:6px" data-act="nextBook">jetzt beginnen</button></p>` : ""}
+      <label class="fl" for="book-abend">Sekundärbuch<input type="text" id="book-abend" data-book="abend" value="${esc(st.books.abend)}" placeholder="Titel eintragen"></label>
+    </div>
+  </section>
+  <section class="panel" data-tab="task" aria-labelledby="h-task"><div class="ph"><h2 id="h-task">Aufgaben</h2></div>
+    ${tasksHtml()}
+    <form class="form" data-form="task">
+      <input type="text" id="task-title" placeholder="Was? z. B. HA Nissen" aria-label="Aufgabe" autocomplete="off">
+      <div class="row"><input type="number" id="task-min" min="15" step="15" value="60" style="width:84px" aria-label="Dauer in Minuten"><input type="date" id="task-due" style="flex:1 1 140px" aria-label="Fällig am"><input type="time" id="task-time" style="width:104px" aria-label="Uhrzeit der Frist (optional)"><button class="btn" type="submit">Eintragen</button></div>
+      <p class="note">Ohne Uhrzeit plant Tagwerk die Aufgabe spätestens am Vortag ein, mit Uhrzeit auch am Fälligkeitstag davor.</p>
+    </form>
+  </section>
+  <section class="panel" data-tab="test" aria-labelledby="h-test"><div class="ph"><h2 id="h-test">Tests</h2></div>
+    ${testsHtml()}
+    <form class="form" data-form="test">
+      <div class="row"><input type="text" id="test-subj" placeholder="Fach" style="flex:1 1 140px" aria-label="Fach"><input type="date" id="test-date" style="flex:0 1 160px" aria-label="Datum"><button class="btn" type="submit">Eintragen</button></div>
+      <p class="note">Am Vortag plant Tagwerk eine zusätzliche Lernzeit für das Fach ein. Der Test erscheint als ganztägiger Termin.</p>
+    </form>
+  </section>
+  <section class="panel" data-tab="geb" aria-labelledby="h-geb"><div class="ph"><h2 id="h-geb">Geburtstage</h2></div>
+    ${birthdaysHtml()}
+    <form class="form" data-form="geb">
+      <div class="row"><input type="text" id="geb-name" placeholder="Name" style="flex:1 1 140px" aria-label="Name"><input type="date" id="geb-date" style="flex:0 1 160px" aria-label="Geburtsdatum"><button class="btn" type="submit">Eintragen</button></div>
+      <p class="note">Landet als jährlicher Termin in Tagwerk.</p>
+    </form>
+  </section>`;
+}
+function gtHtml() {
+  const q = ytQueue("gt").filter(i => i.rest > 0);
+  const doc = S.store.gtDoc ? `<p class="note" style="margin:4px 0 0"><a href="${esc(S.store.gtDoc)}" target="_blank" rel="noopener">Projektplan öffnen</a></p>` : "";
+  if (!q.length) return `<p class="note">Kein nächster Schritt eingetragen.</p>${doc}`;
+  const shown = q.slice(0, 4);
+  return `<ol class="yt">${shown.map((it, k) => `<li><span class="n">${k + 1}</span>${it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title)}</a>` : `<span>${esc(it.title)}</span>`}<span class="mono">${it.rest < (+it.min || 0) ? `noch ${it.rest}` : it.rest} min</span><button class="mini" data-act="ytUp" data-list="gt" data-id="${esc(it.id)}" aria-label="Nach oben" ${k === 0 ? "disabled" : ""}>↑</button><button class="mini" data-act="ytDel" data-list="gt" data-id="${esc(it.id)}" aria-label="Entfernen">✕</button></li>`).join("")}</ol>${q.length > 4 ? `<p class="note">und ${q.length - 4} weitere Schritte</p>` : ""}${doc}`;
+}
+function tasksHtml() {
+  const list = (S.store.tasks || []).slice().sort((a, b) => (a.due + (a.dueTime || "")).localeCompare(b.due + (b.dueTime || "")));
+  const open = list.filter(t => !t.done), done = list.filter(t => t.done);
+  if (!open.length && !done.length) return `<p class="note" style="margin-top:0">Keine offenen Aufgaben.</p>`;
+  const state = t => {
+    if (t.eid) { const e = S.events.find(x => x.id === t.eid); return e ? `eingeplant ${DSHORT[(e.start.getDay() + 6) % 7]} ${hhmm(minOfDay(e.start))}` : "eingeplant"; }
+    const sg = S.sugg.find(x => x.type === "task" && x.taskId === t.id);
+    return sg ? `Vorschlag ${DSHORT[sg.i]} ${hhmm(sg.start)}` : (t.due < ymd(new Date()) ? "überfällig" : "noch kein Platz");
+  };
+  let h = `<ul class="bd">${open.map(t => `<li class="${state(t) === "noch kein Platz" || state(t) === "überfällig" ? "soon" : ""}"><b>${esc(t.title)} <span class="mono">${t.min} min</span></b><span class="mono">${esc(dueText(t))} · ${esc(state(t))}</span><span class="step"><button class="mini" data-act="taskDone" data-id="${esc(t.id)}" aria-label="${esc(t.title)} erledigt">✓</button><button class="mini" data-act="taskDel" data-id="${esc(t.id)}" aria-label="${esc(t.title)} entfernen">✕</button></span></li>`).join("")}</ul>`;
+  if (done.length) h += `<details class="seen"><summary>Erledigt (${done.length})</summary><ul>${done.slice(-10).map(t => `<li>${esc(t.title)} <button class="mini" data-act="taskDel" data-id="${esc(t.id)}" aria-label="Löschen">✕</button></li>`).join("")}</ul></details>`;
+  return h;
+}
+function loadHtml() {
+  if (!S.eventsLoaded || S.calErr) return "";
+  const st = S.store, names = { lec: "Vorlesungen", task: "Aufgaben" };
+  const durOf = k => k === "lec" ? (+st.types.va.dur || 60) : k === "task" ? 60 : (+(st.types[k] || {}).dur || 60);
+  const miss = Object.entries(S.short || {}).filter(([, n]) => n > 0);
+  const missMin = miss.reduce((a, [k, n]) => a + n * durOf(k), 0);
+  const free = fmtH((S.freeMin || 0) / 60);
+  if (!miss.length) return `<p class="load ok">Das Soll passt in diese Woche. Danach bleiben noch ${free} h frei.</p>`;
+  const parts = miss.map(([k, n]) => `${names[k] || typeLabel(k)} ${n}`).join(", ");
+  return `<p class="load short">Es passt nicht alles: Es fehlen ${fmtH(missMin / 60)} h (${esc(parts)}). Frei sind nur noch ${free} h, verstreut über die Woche. Senk das Soll, oder plane einen freien Abend ein.</p>`;
+}
+function testsHtml() {
+  const k0 = ymd(new Date());
+  const list = (S.store.tests || []).filter(t => t.date >= k0).sort((a, b) => a.date.localeCompare(b.date));
+  if (!list.length) return `<p class="note" style="margin-top:0">Keine anstehenden Tests.</p>`;
+  const t0 = dayStart(new Date());
+  return `<ul class="bd">${list.map(t => {
+    const d = ymdToDate(t.date), days = Math.round((d - t0) / 864e5);
+    const when = days === 0 ? "heute" : days === 1 ? "morgen" : `in ${days} Tagen`;
+    return `<li class="${days <= 3 ? "soon" : ""}"><b>${esc(t.subject)}</b><span class="mono">${DSHORT[(d.getDay() + 6) % 7]} ${d.getDate()}. ${MON[d.getMonth()]} · ${when}</span><button class="mini" data-act="testDel" data-id="${esc(t.id)}" aria-label="${esc(t.subject)} entfernen">✕</button></li>`;
+  }).join("")}</ul>`;
+}
+function birthdaysHtml() {
+  const t0 = dayStart(new Date());
+  const list = (S.store.birthdays || []).map(b => ({ ...b, next: nextOcc(b.date) })).sort((a, b) => a.next - b.next);
+  if (!list.length) return `<p class="note" style="margin-top:0">Noch keine wichtigen Geburtstage eingetragen.</p>`;
+  return `<ul class="bd">${list.map(b => {
+    const days = Math.round((b.next - t0) / 864e5);
+    const when = days === 0 ? "heute" : days === 1 ? "morgen" : `in ${days} Tagen`;
+    const y = +String(b.date).slice(0, 4), age = y > 1900 ? b.next.getFullYear() - y : null;
+    return `<li class="${days <= 14 ? "soon" : ""}"><b>${esc(b.name)}${age ? ` <span class="mono">wird ${age}</span>` : ""}</b><span class="mono">${b.next.getDate()}. ${MON[b.next.getMonth()]} · ${when}</span><button class="mini" data-act="gebDel" data-id="${esc(b.id)}" aria-label="${esc(b.name)} entfernen">✕</button></li>`;
+  }).join("")}</ul>`;
+}
+function render() { renderHeader(); renderGrid(); renderSide(); }
+
+/* ---------- Blätter ---------- */
+function openSheet(html, kind) {
+  S.sheet = kind;
+  $("#sheet").innerHTML = html; $("#scrim").hidden = false;
+  const f = $("#sheet").querySelector("[autofocus], .btn.primary, button");
+  if (f) f.focus();
+}
+function closeSheet() { $("#scrim").hidden = true; $("#sheet").innerHTML = ""; S.sheet = null; }
+function dayName(d) { return `${DLONG[(d.getDay() + 6) % 7]}, ${d.getDate()}. ${MON[d.getMonth()]}`; }
+
+function sheetSugg(sg) {
+  const x = blockText(sg.type, S.labels["s:" + sg.key], "", sg.date, sg.pair);
+  const W = S.store.settings.walk || {};
+  let walk = "";
+  if ((sg.type === "bib" || sg.type === "gym") && walkDay(sg.i)) {
+    const wx = wxFor(ymd(sg.date));
+    walk = `<p class="note">Fußweg ist freigehalten${sg.type === "bib" ? ` (${+W.bib || 0} min hin und zurück)` : ""}. Wetter: ${wx.manual ? (wx.wet ? "von dir als nass markiert" : "von dir als trocken markiert") : wx.w ? `${Math.round(+wx.w.pop || 0)} % ${wx.w.kind === "snow" ? "Schnee" : "Regen"}` : "noch keine Vorhersage"}.</p>`;
+  }
+  openSheet(`<div class="eyebrow" style="margin-top:0">Vorschlag</div><h3>${esc(x.t)}</h3>
+    <p class="sub">${dayName(sg.date)} · <span class="mono">${hhmm(sg.start)}–${hhmm(sg.start + sg.dur)}</span>${x.s ? ` · ${esc(x.s)}` : ""}</p>${walk}
+    <div class="acts2"><button class="btn primary" data-act="acceptOne" data-key="${esc(sg.key)}">In Kalender übernehmen</button><button class="btn" data-act="reject" data-key="${esc(sg.key)}">Anderen Platz suchen</button><button class="btn" data-act="skipDay" data-key="${esc(sg.key)}">Heute nicht</button><span class="grow"></span><button class="btn quiet" data-act="close">Schließen</button></div>
+    <p class="note">„Heute nicht“ sperrt diesen Block für den Tag und sucht ihm einen anderen. Brauchst du ihn diese Woche gar nicht, senk das Wochensoll.</p>`, "sugg");
+}
+function sheetEvent(ev) {
+  const tm = ev.allDay ? "ganztägig" : `${hhmm(minOfDay(ev.start))}–${hhmm(minOfDay(ev.end))}`;
+  if (!ev.type || ev.type === "geb" || ev.type === "test") {
+    openSheet(`<div class="eyebrow" style="margin-top:0">Termin</div><h3>${esc(ev.title)}</h3><p class="sub">${dayName(ev.start)} · <span class="mono">${tm}</span></p>
+      <div class="acts2">${ev.link ? `<a class="btn" href="${esc(ev.link)}" target="_blank" rel="noopener">In Google Kalender öffnen</a>` : ""}<span class="grow"></span><button class="btn quiet" data-act="close">Schließen</button></div>`, "ev");
+    return;
+  }
+  const x = blockText(ev.type, S.labels["e:" + ev.id], ev.title, ev.start, ev.type === "gym" ? gymPair(dayStart(ev.start), minOfDay(ev.start), minOfDay(ev.end)) : null), done = isDone(ev);
+  openSheet(`<div class="eyebrow" style="margin-top:0">${esc(typeLabel(ev.type))}</div><h3>${esc(x.t)}</h3>
+    <p class="sub">${dayName(ev.start)} · <span class="mono">${tm}</span>${x.s ? ` · ${esc(x.s)}` : ""}${done ? " · erledigt" : ""}</p>
+    ${S.labels["e:" + ev.id] && (S.labels["e:" + ev.id].urls || []).length ? `<p>${S.labels["e:" + ev.id].urls.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>`).join("<br>")}</p>` : ""}
+    <div class="acts2">${ev.end <= new Date() ? `<button class="btn${done ? "" : " primary"}" data-act="${done ? "skip" : "unskip"}" data-id="${esc(ev.id)}">${done ? "Nicht gemacht" : "Doch gemacht"}</button>` : ""}${ev.link ? `<a class="btn" href="${esc(ev.link)}" target="_blank" rel="noopener">In Google öffnen</a>` : ""}<button class="btn danger" data-act="del" data-id="${esc(ev.id)}">Löschen</button><span class="grow"></span><button class="btn quiet" data-act="close">Schließen</button></div>
+    <p class="note">Vorbei heißt erledigt: Warteschlangen rücken automatisch weiter. Nur wenn ein Block ausgefallen ist, tippe auf „Nicht gemacht“.</p>`, "ev");
+}
+function sheetQuickAdd(i, min) {
+  const date = addDays(S.weekStart, i);
+  const start = Math.min(Math.max(min, H0 * 60), 23 * 60);
+  const types = TYPE_ORDER.map((t, k) => `<button type="button" style="--c:${colorVar(t)}" data-act="qaType" data-type="${t}" aria-pressed="${k === 0}"><span class="dot"></span>${esc(typeLabel(t))}</button>`).join("");
+  openSheet(`<div class="eyebrow" style="margin-top:0">Block eintragen</div><h3>${dayName(date)}</h3>
+    <div class="types" id="qa-types">${types}</div>
+    <div class="grid2"><label class="fl" for="qa-start">Beginn<input type="time" id="qa-start" step="900" value="${hhmm(start)}"></label><label class="fl" for="qa-dur">Dauer (min)<input type="number" id="qa-dur" min="15" step="15" value="${S.store.types.lern.dur}"></label></div>
+    <input type="hidden" id="qa-type" value="lern"><input type="hidden" id="qa-day" value="${i}">
+    <div class="acts2"><button class="btn primary" data-act="qaSave">Eintragen</button><span class="grow"></span><button class="btn quiet" data-act="close">Abbrechen</button></div>`, "qa");
+}
+function sheetLecNext(slot) {
+  openSheet(`<div class="eyebrow" style="margin-top:0">Nächste Reihe</div><h3>Folgende Vorlesungsreihe</h3>
+    <p class="sub">Übernimmt den Platz von ${esc(typeLabel(slot))} im Wochenmuster.</p>
+    <div class="grid2"><label class="fl" for="ln-name">Kürzel oder Name<input type="text" id="ln-name" autofocus></label><label class="fl" for="ln-h">Stunden offen<input type="number" id="ln-h" min="0.5" step="0.5" value="10"></label></div>
+    <div class="acts2"><button class="btn primary" data-act="lecStart" data-slot="${slot}">Reihe starten</button><span class="grow"></span><button class="btn quiet" data-act="close">Abbrechen</button></div>`, "lec");
+}
+function sheetSettings() {
+  const st = S.store, s = st.settings;
+  let rows = "";
+  for (const t of TYPE_ORDER) {
+    const T = st.types[t];
+    if (t === "abend") {
+      rows += `<tr><td><span class="dot" style="--c:${colorVar(t)};display:inline-block;margin-right:6px"></span>Sekundärbuch</td><td><input type="number" id="st-${t}-dur" min="15" step="5" value="${T.dur}" aria-label="Dauer"></td><td colspan="2"><input type="time" id="st-${t}-fixed" value="${esc(T.fixed)}" aria-label="Uhrzeit"></td></tr>`;
+      continue;
+    }
+    rows += `<tr><td><span class="dot" style="--c:${colorVar(t)};display:inline-block;margin-right:6px"></span>${esc(typeLabel(t))}</td><td><input type="number" id="st-${t}-dur" min="15" step="15" value="${T.dur}" aria-label="Dauer"></td><td><input type="time" id="st-${t}-from" step="900" value="${esc(T.from)}" aria-label="frühestens"></td><td><input type="time" id="st-${t}-to" step="900" value="${esc(T.to)}" aria-label="spätestens Ende"></td></tr>`;
+  }
+  let school = "";
+  for (let i = 0; i < 5; i++) {
+    const t = s.school[String(i)] || ["", ""];
+    school += `<tr><td>${DLONG[i]}</td><td><input type="time" id="sc-${i}-a" value="${esc(t[0])}" aria-label="Beginn"></td><td><input type="time" id="sc-${i}-b" value="${esc(t[1])}" aria-label="Ende"></td></tr>`;
+  }
+  let lec = "";
+  for (const slot of ["va", "vb"]) {
+    lec += `<tr><td><input type="text" id="lc-${slot}-name" value="${esc(st.lectures[slot].name)}" aria-label="Name"></td><td><input type="number" id="lc-${slot}-rem" min="0" step="0.5" value="${lectureRemain(slot)}" aria-label="Stunden offen"></td></tr>`;
+  }
+  openSheet(`<h3>Einstellungen</h3><p class="sub">Dauer und Zeitfenster gelten für neue Vorschläge.</p>
+    <div class="eyebrow">Blöcke</div>
+    <div class="tblwrap"><table class="settings-tbl"><thead><tr><th>Block</th><th>Dauer min</th><th>frühestens</th><th>Ende bis</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="eyebrow">Vorlesungsreihen</div>
+    <div class="tblwrap"><table class="settings-tbl"><thead><tr><th>Name</th><th>Stunden offen</th></tr></thead><tbody>${lec}</tbody></table></div>
+    <div class="eyebrow">Schule</div>
+    <div class="tblwrap"><table class="settings-tbl"><thead><tr><th>Tag</th><th>Beginn</th><th>Ende</th></tr></thead><tbody>${school}</tbody></table></div>
+    <div class="eyebrow">Tag</div>
+    <div class="grid2">
+      <label class="fl" for="s-after">Nach der Schule frei ab (+ min)<input type="number" id="s-after" min="0" step="15" value="${s.afterSchool}"></label>
+      <label class="fl" for="s-wk">Schulfreie Tage ab<input type="time" id="s-wk" step="900" value="${esc(s.weekendStart)}"></label>
+      <label class="fl" for="s-end">Planung endet um<input type="time" id="s-end" step="900" value="${esc(s.dayEnd)}"></label>
+      <label class="fl" for="s-buf">Pause zwischen Blöcken (min)<input type="number" id="s-buf" min="0" step="5" value="${s.buffer}"></label>
+    </div>
+    <div class="eyebrow">Wege (Montag bis Samstag zu Fuß)</div>
+    <div class="grid2">
+      <label class="fl" for="w-bib">Wohnung ↔ Bib (min)<input type="number" id="w-bib" min="0" step="5" value="${(s.walk || {}).bib ?? 30}"></label>
+      <label class="fl" for="w-bg">Bib ↔ Gym (min)<input type="number" id="w-bg" min="0" step="5" value="${(s.walk || {}).bibGym ?? 15}"></label>
+      <label class="fl" for="w-gym">Gym ↔ Wohnung (min)<input type="number" id="w-gym" min="0" step="5" value="${(s.walk || {}).gym ?? 30}"></label>
+      <label class="fl" for="w-rain">Keine Bib zu Fuß ab Regen (%)<input type="number" id="w-rain" min="5" max="100" step="5" value="${s.rainLimit ?? 50}"></label>
+    </div>
+    <label class="fl" style="flex-direction:row;align-items:center;gap:8px;margin-top:10px;color:var(--ink)"><input type="checkbox" id="s-sun" ${st.types.bib.sundayFixed ? "checked" : ""}> Sonntag immer Bibliothek</label>
+    <div class="eyebrow">Speicher</div>
+    <p class="note" style="margin-top:0">${TW.cfg() ? `Gespeichert in ${esc(TW.cfg().repo)}, Ordner tagwerk/.` : "Noch nicht verbunden."} <button class="mini" style="width:auto;padding-inline:8px" data-act="syncSheet">Verbindung</button></p>
+    <div class="acts2"><button class="btn primary" data-act="saveSettings">Speichern</button><span class="grow"></span><button class="btn quiet" data-act="close">Abbrechen</button></div>`, "settings");
+}
+
+/* ---------- Aktionen ---------- */
+const findEv = id => S.events.find(e => e.id === id);
+const findSg = key => S.sugg.find(s => s.key === key);
+async function guarded(fn) {
+  if (S.busy) return;
+  S.busy = true; renderHeader();
+  try { await fn(); } finally { S.busy = false; renderHeader(); }
+}
+const A = {
+  sideTab(el) { S.sideTab = el.dataset.t; try { localStorage.setItem("tagwerk.sideTab", S.sideTab); } catch (_) {} renderSide(); },
+  syncSheet() {
+    const c = TW.cfg() || {};
+    openSheet(`<h3>Verbindung</h3><p class="sub">Tagwerk speichert Termine, Listen und Einstellungen als Dateien im Ordner tagwerk/ deines privaten GitHub-Repositorys. ${c.shared ? "Die Verbindung kommt gerade aus Tabula auf diesem Gerät." : "Ist Tabula auf diesem Gerät verbunden, nutzt Tagwerk dieselbe Verbindung."}</p>
+      <label class="fl" for="sy-repo">Repository<input type="text" id="sy-repo" value="${esc(c.repo || "erz-mentat/tabula-daten")}" autocomplete="off" spellcheck="false"></label>
+      <label class="fl" for="sy-token">Schlüssel (fine-grained, Contents: Lesen und Schreiben)<input type="password" id="sy-token" value="" placeholder="${c.token ? "unverändert lassen" : "github_pat_…"}" autocomplete="off" spellcheck="false"></label>
+      <p class="note" id="sy-msg" aria-live="polite"></p>
+      <div class="acts2"><button class="btn primary" data-act="syncSave">Speichern</button>${c.token && !c.shared ? `<button class="btn quiet" data-act="syncClear">Trennen</button>` : ""}<span class="grow"></span><button class="btn quiet" data-act="close">Abbrechen</button></div>`, "sync");
+  },
+  syncSave() {
+    const c = TW.cfg() || {}, repo = $("#sy-repo").value.trim(), token = $("#sy-token").value.trim() || c.token || "";
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !token) { $("#sy-msg").textContent = "Repository als Besitzer/Name und einen Schlüssel angeben."; return; }
+    $("#sy-msg").textContent = "Prüfe …";
+    TW.test(repo, token).then(err => {
+      if (err) { $("#sy-msg").textContent = err; return; }
+      TW.setCfg(repo, token); location.reload();
+    });
+  },
+  syncClear() { TW.clearCfg(); location.reload(); },
+  prev() { S.weekStart = addDays(S.weekStart, -7); weekChanged(); },
+  next() { S.weekStart = addDays(S.weekStart, 7); weekChanged(); },
+  today() { S.weekStart = mondayOf(new Date()); weekChanged(); },
+  reload() { loadWeek(); },
+  resuggest() { S.rejected.clear(); recompute(); render(); toast(S.sugg.length ? `${S.sugg.length} Vorschläge berechnet.` : "Keine offenen Lücken für das Wochensoll."); },
+  tab(el) { S.activeDay = +el.dataset.i; renderGrid(); },
+  close() { closeSheet(); },
+  settings() { sheetSettings(); },
+  sg(el) { const sg = findSg(el.dataset.key); if (sg) sheetSugg(sg); },
+  ev(el) { const ev = findEv(el.dataset.id); if (ev) sheetEvent(ev); },
+  school(el) {
+    const k = el.dataset.date, off = S.store.settings.schoolOff;
+    if (off[k]) delete off[k]; else off[k] = true;
+    persist(); recompute(); render();
+  },
+  sollLec(el) {
+    const s = S.store.settings;
+    s.lecturesPerWeek = Math.max(0, Math.min(21, (+s.lecturesPerWeek || 0) + (+el.dataset.d)));
+    persist(); recompute(); render();
+  },
+  testDel(el) {
+    if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "löschen?"; return; }
+    const t = (S.store.tests || []).find(x => x.id === el.dataset.id); if (!t) return;
+    guarded(async () => {
+      if (t.eid && S.mcp) { try { await call("delete_event", { eventId: t.eid, notificationLevel: "NONE" }); } catch (e) { writeFailed(e); } }
+      S.store.tests = S.store.tests.filter(x => x.id !== t.id);
+      await persist(); toast(`Test ${t.subject} entfernt.`);
+      await loadWeek();
+    });
+  },
+  replan(el) {
+    if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Wirklich neu planen?"; setTimeout(() => { el.classList.remove("armed"); el.textContent = "Woche neu planen"; }, 5000); return; }
+    const now = new Date();
+    const list = S.events.filter(ev => ev.type && !["geb", "test", "abend"].includes(ev.type) && !isDone(ev) && !ev.allDay && ev.start > now);
+    if (!list.length) { toast("Keine offenen Tagwerk-Blöcke in dieser Woche."); return; }
+    guarded(async () => {
+      let n = 0;
+      for (const ev of list) {
+        try { await call("delete_event", { eventId: ev.id, notificationLevel: "NONE" }); n++; $("#status").textContent = `Entfernt ${n} von ${list.length} …`; }
+        catch (e) { writeFailed(e); break; }
+      }
+      S.rejected.clear();
+      toast(`${n} Blöcke entfernt. Prüf die neuen Vorschläge und tippe auf „Alle übernehmen“.`);
+      await loadWeek();
+    });
+  },
+  soll(el) {
+    const T = S.store.types[el.dataset.type];
+    T.perWeek = Math.max(0, Math.min(14, (+T.perWeek || 0) + (+el.dataset.d)));
+    persist(); recompute(); render();
+  },
+  wx(el) {
+    const k = el.dataset.date, set = S.store.settings;
+    set.wx = set.wx || {};
+    const o = set.wx[k];
+    if (o === undefined) set.wx[k] = "wet"; else if (o === "wet") set.wx[k] = "dry"; else delete set.wx[k];
+    persist(); recompute(); render();
+  },
+  skipDay(el) {
+    const [type, rest] = el.dataset.key.split("@"), date = rest.slice(0, 10), set = S.store.settings;
+    set.skip = set.skip || {};
+    const list = Array.isArray(set.skip[date]) ? set.skip[date] : [];
+    if (!list.includes(type)) list.push(type);
+    set.skip[date] = list;
+    closeSheet(); persist(); recompute(); render();
+    toast(`${typeLabel(type)} für ${dayName(ymdToDate(date))} gesperrt.`);
+  },
+  gebDel(el) {
+    if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "löschen?"; return; }
+    const b = (S.store.birthdays || []).find(x => x.id === el.dataset.id); if (!b) return;
+    guarded(async () => {
+      if (b.eid && S.mcp) {
+        try { await call("delete_event", { eventId: b.eid, notificationLevel: "NONE" }); }
+        catch (e) { writeFailed(e); }
+      }
+      S.store.birthdays = S.store.birthdays.filter(x => x.id !== b.id);
+      await persist(); toast(`${b.name} entfernt.`);
+      await loadWeek();
+    });
+  },
+  reject(el) {
+    const type = el.dataset.key.split("@")[0];
+    const before = S.sugg.filter(s => s.type === type).length;
+    S.rejected.add(el.dataset.key); closeSheet(); recompute(); render();
+    const after = S.sugg.filter(s => s.type === type).length;
+    toast(after >= before ? "Neuer Platz vorgeschlagen." : "Kein anderer freier Platz in dieser Woche.");
+  },
+  acceptOne(el) {
+    const key = el.dataset.key; if (!findSg(key)) return;
+    closeSheet();
+    guarded(async () => {
+      /* Vor dem Eintragen frisch laden: Ist der Platz inzwischen belegt, wird nichts eingetragen */
+      await loadWeek();
+      const sg = findSg(key);
+      if (!sg) { toast("Der Platz ist inzwischen belegt. Tagwerk hat neu geplant."); return; }
+      try { await createBlock(sg.type, sg.date, sg.start, sg.dur, S.labels["s:" + sg.key], sg.pre, sg.inner); toast(`${typeLabel(sg.type)} eingetragen.`); }
+      catch (e) { writeFailed(e); }
+      await loadWeek();
+    });
+  },
+  acceptAll() {
+    if (!S.sugg.some(s => !s.optional)) return;
+    guarded(async () => {
+      await loadWeek();
+      const list = S.sugg.filter(s => !s.optional).sort((a, b) => a.startDate - b.startDate || (a.type === "bib" ? -1 : b.type === "bib" ? 1 : 0));
+      const labels = S.labels;
+      if (!list.length) { toast("Nichts mehr offen."); return; }
+      let n = 0;
+      for (const sg of list) {
+        try { await createBlock(sg.type, sg.date, sg.start, sg.dur, labels["s:" + sg.key], sg.pre, sg.inner); n++; $("#status").textContent = `Eingetragen ${n} von ${list.length} …`; }
+        catch (e) { writeFailed(e); break; }
+      }
+      if (n) toast(`${n} Blöcke in Google Kalender eingetragen.`);
+      await loadWeek();
+    });
+  },
+  done(el) {
+    const ev = findEv(el.dataset.id); if (!ev) return;
+    closeSheet();
+    guarded(async () => {
+      const min = Math.round((ev.end - ev.start) / 60000);
+      const entry = { slot: ev.type, min, at: Date.now() };
+      if (queueOf(ev.type)) {
+        const q = ytQueue(queueOf(ev.type)).filter(i => i.rest > 0); let need = min; const alloc = [];
+        for (const it of q) { if (need <= 0) break; const take = Math.min(need, it.rest); alloc.push([it.id, take]); need -= take; }
+        entry.alloc = alloc;
+      }
+      if (ev.type === "va" || ev.type === "vb") entry.sid = S.store.lectures[ev.type].sid;
+      try { await call("update_event", { eventId: ev.id, summary: "✓ " + cleanTitle(ev.title), notificationLevel: "NONE" }); }
+      catch (e) { writeFailed(e); await loadWeek(); return; }
+      S.store.done[ev.id] = entry; await persist();
+      await loadWeek();
+    });
+  },
+  nextBook() {
+    const b = S.store.books; if (!b.sachNext) return;
+    b.sach = b.sachNext; b.sachNext = "";
+    persist(); recompute(); render(); toast("Neues Primärbuch eingetragen.");
+  },
+  taskDone(el) {
+    const t = (S.store.tasks || []).find(x => x.id === el.dataset.id); if (!t) return;
+    t.done = true; persist(); recompute(); render(); toast(`„${t.title}“ erledigt.`);
+  },
+  taskDel(el) {
+    if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "löschen?"; return; }
+    const t = (S.store.tasks || []).find(x => x.id === el.dataset.id); if (!t) return;
+    guarded(async () => {
+      if (t.eid && t.eid !== "pending" && !t.done && S.mcp) { try { await call("delete_event", { eventId: t.eid, notificationLevel: "NONE" }); } catch (e) { writeFailed(e); } }
+      S.store.tasks = S.store.tasks.filter(x => x.id !== t.id);
+      await persist(); toast("Aufgabe entfernt.");
+      await loadWeek();
+    });
+  },
+  cmdStop() { if (S.cmdCtl) S.cmdCtl.abort(); },
+  skip(el) {
+    const ev = findEv(el.dataset.id); if (!ev) return;
+    S.store.done[ev.id] = { skipped: true, at: Date.now() };
+    if (ev.type === "task" && ev.taskId) { const t = (S.store.tasks || []).find(x => x.id === ev.taskId); if (t) { t.done = false; t.eid = null; } }
+    closeSheet(); persist(); recompute(); render(); toast("Als nicht gemacht vermerkt. Die Warteschlange rückt nicht weiter.");
+  },
+  unskip(el) {
+    const ev = findEv(el.dataset.id); if (!ev) return;
+    delete S.store.done[ev.id];
+    autoDone([ev]);
+    closeSheet(); persist(); recompute(); render(); toast("Wieder als erledigt gezählt.");
+  },
+  undone(el) {
+    const ev = findEv(el.dataset.id); if (!ev) return;
+    closeSheet();
+    guarded(async () => {
+      try { await call("update_event", { eventId: ev.id, summary: cleanTitle(ev.title), notificationLevel: "NONE" }); }
+      catch (e) { writeFailed(e); await loadWeek(); return; }
+      delete S.store.done[ev.id]; await persist();
+      await loadWeek();
+    });
+  },
+  del(el) {
+    if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Wirklich löschen?"; return; }
+    const ev = findEv(el.dataset.id); if (!ev) return;
+    closeSheet();
+    guarded(async () => {
+      try {
+        await call("delete_event", { eventId: ev.id, notificationLevel: "NONE" }); toast("Block gelöscht.");
+        if (ev.type === "task" && ev.taskId) { const t = (S.store.tasks || []).find(x => x.id === ev.taskId); if (t) { t.eid = null; await persist(); } }
+      }
+      catch (e) { writeFailed(e); }
+      await loadWeek();
+    });
+  },
+  qaType(el) {
+    for (const b of document.querySelectorAll("#qa-types button")) b.setAttribute("aria-pressed", String(b === el));
+    const t = el.dataset.type; $("#qa-type").value = t;
+    $("#qa-dur").value = S.store.types[t].dur;
+    if (t === "abend") $("#qa-start").value = S.store.types.abend.fixed;
+  },
+  qaSave() {
+    const type = $("#qa-type").value, i = +$("#qa-day").value, start = toMin($("#qa-start").value), dur = Math.max(15, +$("#qa-dur").value || 60);
+    if (start + dur > 1439) { toast("Der Block würde über Mitternacht gehen. Wähl einen früheren Beginn."); return; }
+    const date = addDays(S.weekStart, i);
+    closeSheet();
+    guarded(async () => {
+      try { await createBlock(type, date, start, dur); toast(`${typeLabel(type)} eingetragen.`); }
+      catch (e) { writeFailed(e); }
+      await loadWeek();
+    });
+  },
+  abendSeries(el) {
+    const T = S.store.types.abend, start = toMin(T.fixed), dur = +T.dur || 45;
+    if (start + dur > 1439) { toast("Das Sekundärbuch würde über Mitternacht gehen. Ändere Uhrzeit oder Dauer."); return; }
+    const today = dayStart(new Date()), first = S.weekStart > today ? S.weekStart : today;
+    guarded(async () => {
+      try {
+        await call("create_event", {
+          summary: summaryFor("abend"), startTime: localISO(first, start), endTime: localISO(first, start + dur),
+          description: descFor("abend"), colorId: META.abend.color, recurrenceData: ["RRULE:FREQ=DAILY"]
+        });
+        toast("Sekundärbuch täglich eingetragen.");
+      } catch (e) { writeFailed(e); }
+      await loadWeek();
+    });
+  },
+  lecNext(el) { sheetLecNext(el.dataset.slot); },
+  lecStart(el) {
+    const slot = el.dataset.slot, name = $("#ln-name").value.trim(), h = +$("#ln-h").value || 0;
+    if (!name) { toast("Gib der Reihe einen Namen."); return; }
+    S.store.lectures[slot] = { name, total: h, sid: rid() };
+    closeSheet(); persist(); recompute(); render();
+  },
+  ytUp(el) {
+    const list = el.dataset.list || "yt", arr = S.store[list], open = ytQueue(list).filter(i => i.rest > 0).map(i => i.id);
+    const k = open.indexOf(el.dataset.id); if (k <= 0) return;
+    const a = arr.findIndex(i => i.id === open[k - 1]), b = arr.findIndex(i => i.id === open[k]);
+    [arr[a], arr[b]] = [arr[b], arr[a]];
+    persist(); recompute(); render();
+  },
+  ytDel(el) {
+    const list = el.dataset.list || "yt";
+    S.store[list] = (S.store[list] || []).filter(i => i.id !== el.dataset.id);
+    persist(); recompute(); render(); toast(list === "gt" ? "Schritt entfernt." : "Video entfernt.");
+  },
+  saveSettings() {
+    const st = S.store, s = st.settings, num = (id, d) => { const v = +$(id).value; return Number.isFinite(v) && $(id).value !== "" ? v : d; };
+    const time = (id, d) => /^\d{2}:\d{2}$/.test($(id).value) ? $(id).value : d;
+    for (const t of TYPE_ORDER) {
+      const T = st.types[t];
+      T.dur = Math.max(15, num(`#st-${t}-dur`, T.dur));
+      if (t === "abend") { T.fixed = time(`#st-${t}-fixed`, T.fixed); continue; }
+      T.from = time(`#st-${t}-from`, T.from); T.to = time(`#st-${t}-to`, T.to);
+    }
+    for (const slot of ["va", "vb"]) {
+      const L = st.lectures[slot], name = $(`#lc-${slot}-name`).value.trim();
+      if (name) L.name = name;
+      const rem = Math.max(0, num(`#lc-${slot}-rem`, lectureRemain(slot)));
+      const used = Math.max(0, (+L.total || 0) - lectureRemain(slot));
+      L.total = Math.round((rem + used) * 100) / 100;
+    }
+    for (let i = 0; i < 5; i++) s.school[String(i)] = [time(`#sc-${i}-a`, ""), time(`#sc-${i}-b`, "")];
+    s.afterSchool = Math.max(0, num("#s-after", s.afterSchool));
+    s.weekendStart = time("#s-wk", s.weekendStart);
+    s.dayEnd = time("#s-end", s.dayEnd);
+    s.buffer = Math.max(0, num("#s-buf", s.buffer));
+    s.walk = { bib: Math.max(0, num("#w-bib", 30)), bibGym: Math.max(0, num("#w-bg", 15)), gym: Math.max(0, num("#w-gym", 30)) };
+    s.rainLimit = Math.min(100, Math.max(5, num("#w-rain", 50)));
+    st.types.bib.sundayFixed = $("#s-sun").checked;
+    closeSheet(); persist(); recompute(); render(); toast("Einstellungen gespeichert.");
+  }
+};
+function weekChanged() {
+  const cur = mondayOf(new Date());
+  S.activeDay = +S.weekStart === +cur ? (new Date().getDay() + 6) % 7 : 0;
+  S.events = []; S.holidays = {}; S.eventsLoaded = false; S.rejected.clear();
+  recompute(); render(); loadWeek();
+}
+function normalizeYt(raw) {
+  const s = raw.trim();
+  let id = null, m;
+  if ((m = /duck:\/\/player\/([\w-]{6,})/.exec(s))) id = m[1];
+  else if ((m = /youtu\.be\/([\w-]{6,})/.exec(s))) id = m[1];
+  else if ((m = /[?&]v=([\w-]{6,})/.exec(s))) id = m[1];
+  else if ((m = /youtube\.com\/(?:shorts|live|embed)\/([\w-]{6,})/.exec(s))) id = m[1];
+  else if (/^[\w-]{11}$/.test(s)) id = s;
+  if (!id) return null;
+  const t = /[?&]t=(\d+)/.exec(s);
+  return { id, url: `https://www.youtube.com/watch?v=${id}${t ? `&t=${t[1]}s` : ""}` };
+}
+
+document.addEventListener("click", e => {
+  const a = e.target.closest("[data-act]");
+  if (a && A[a.dataset.act]) { e.preventDefault(); A[a.dataset.act](a, e); return; }
+  if (e.target === $("#scrim")) { closeSheet(); return; }
+  const col = e.target.closest(".col");
+  if (col && !e.target.closest(".blk")) {
+    if (!S.mcp || !S.eventsLoaded || S.busy) { toast("Der Kalender ist noch nicht geladen."); return; }
+    const r = col.getBoundingClientRect();
+    const pph = r.height / (H1 - H0);
+    const min = H0 * 60 + Math.floor(((e.clientY - r.top) / pph) * 4) * 15;
+    sheetQuickAdd(+col.dataset.day, min);
+  }
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && S.sheet) closeSheet(); });
+document.addEventListener("submit", e => {
+  const f = e.target.closest("[data-form]"); if (!f) return;
+  e.preventDefault();
+  if (f.dataset.form === "yt") {
+    const n = normalizeYt($("#yt-url").value);
+    if (!n) { toast("Das sieht nicht nach einem YouTube-Link aus."); return; }
+    const title = $("#yt-title").value.trim() || `Video ${n.id}`;
+    const min = Math.max(5, +$("#yt-min").value || 60);
+    S.store.yt.push({ id: rid(), title, url: n.url, min });
+    persist(); recompute(); render(); toast("Video hinzugefügt.");
+  }
+  if (f.dataset.form === "task") {
+    const title = $("#task-title").value.trim(), due = $("#task-due").value, tim = $("#task-time").value;
+    const min = Math.max(15, +$("#task-min").value || 60);
+    if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(due)) { toast("Gib Aufgabe und Fälligkeitstag an."); return; }
+    S.store.tasks = [...(S.store.tasks || []), { id: rid(), title, min, due, dueTime: /^\d{2}:\d{2}$/.test(tim) ? tim : "", done: false, eid: null }];
+    persist(); recompute(); render(); toast(`Aufgabe „${title}“ eingetragen.`);
+  }
+  if (f.dataset.form === "cmd") { runCommand(); return; }
+  if (f.dataset.form === "test") {
+    const subject = $("#test-subj").value.trim(), date = $("#test-date").value;
+    if (!subject || !/^\d{4}-\d{2}-\d{2}$/.test(date)) { toast("Gib Fach und Datum an."); return; }
+    if (!S.mcp || !S.eventsLoaded) { toast("Der Kalender ist noch nicht geladen."); return; }
+    guarded(async () => {
+      let eid = null;
+      try {
+        const d = ymdToDate(date);
+        const p = await call("create_event", {
+          summary: `Test: ${subject}`, allDay: true, startTime: localISO(d, 0), endTime: localISO(addDays(d, 1), 0),
+          availability: "AVAILABILITY_FREE", colorId: META.test.color, description: "[tagwerk:test]\nEingetragen mit Tagwerk",
+          overrideReminders: [{ method: "popup", minutes: 360 }]
+        });
+        eid = (p && (p.id || (p.event && p.event.id))) || null;
+      } catch (e) { writeFailed(e); await loadWeek(); return; }
+      S.store.tests = [...(S.store.tests || []), { id: rid(), subject, date, eid }];
+      await persist(); toast(`Test ${subject} eingetragen.`);
+      await loadWeek();
+    });
+  }
+  if (f.dataset.form === "geb") {
+    const name = $("#geb-name").value.trim(), date = $("#geb-date").value;
+    if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(date)) { toast("Gib Name und Datum an."); return; }
+    if (!S.mcp || !S.eventsLoaded) { toast("Der Kalender ist noch nicht geladen."); return; }
+    const n = nextOcc(date);
+    guarded(async () => {
+      let eid = null;
+      try {
+        const p = await call("create_event", {
+          summary: `Geburtstag: ${name}`, allDay: true, startTime: localISO(n, 0), endTime: localISO(addDays(n, 1), 0),
+          recurrenceData: ["RRULE:FREQ=YEARLY"], availability: "AVAILABILITY_FREE", colorId: META.geb.color,
+          description: "[tagwerk:geb]\nEingetragen mit Tagwerk",
+          overrideReminders: [{ method: "popup", minutes: 9000 }, { method: "popup", minutes: 360 }]
+        });
+        eid = (p && (p.id || (p.event && p.event.id))) || null;
+      } catch (e) { writeFailed(e); await loadWeek(); return; }
+      S.store.birthdays = [...(S.store.birthdays || []), { id: rid(), name, date, eid }];
+      await persist(); toast(`Geburtstag von ${name} eingetragen.`);
+      await loadWeek();
+    });
+  }
+});
+document.addEventListener("change", e => {
+  const el = e.target;
+  if (el.dataset && el.dataset.book) { S.store.books[el.dataset.book] = el.value.trim(); persist(); recompute(); renderGrid(); }
+});
+document.addEventListener("focusout", () => { setTimeout(() => { if (S.sidePending) renderSide(); }, 0); });
+
+const mq = window.matchMedia("(max-width: 760px)");
+S.single = mq.matches;
+const onMq = () => { S.single = mq.matches; renderGrid(); };
+if (mq.addEventListener) mq.addEventListener("change", onMq); else if (mq.addListener) mq.addListener(onMq);
+setInterval(() => { if (!S.sheet) renderGrid(); }, 60000);
+
+render();
+
+use("db").then(db => {
+  if (!db) { S.dbOff = true; renderHeader(); return; }
+  S.ref = db.doc("tagwerk/state");
+  S.ref.onSnapshot(snap => {
+    if (snap.metadata && snap.metadata.hasPendingWrites) return;
+    S.store = snap.exists ? merge(clone(DEFAULT_STORE), clone(snap.data())) : clone(DEFAULT_STORE);
+    const first = !S.storeLoaded;
+    S.storeLoaded = true; recompute(); render(); scheduleMirror();
+    if (first && S.eventsLoaded && !S.pastChecked) loadWeek();
+  }, err => { toast(dbErrText(err)); });
+  S.planRef = db.doc("tagwerk/plan");
+  S.planReady = S.planRef.get().then(s => { if (s.exists) { const d = clone(s.data()); S.planDays = d.days || {}; S.planJson = JSON.stringify(S.planDays); } }).catch(() => {});
+  if (S.eventsLoaded && !S.calErr) { syncPlan(); syncEvents(); }
+  db.doc("tagwerk/weather").onSnapshot(snap => {
+    S.weather = snap.exists ? clone(snap.data()) : null;
+    recompute(); render();
+  }, () => {});
+}).catch(() => { S.dbOff = true; renderHeader(); });
+
+/* ---------- Befehlszeile ---------- */
+use("sample").then(fn => { if (fn) { S.sample = fn; const f = $("#cmd"); if (f) f.hidden = false; } }).catch(() => {});
+function compactEvents(list) {
+  return list.filter(e => !e.allDay || e.type === "test" || e.birthday).map(e => ({
+    id: e.id, titel: cleanTitle(e.title), typ: e.type || "termin", tag: ymd(e.start),
+    von: e.allDay ? "ganztägig" : hhmm(minOfDay(e.start)), bis: e.allDay ? "" : hhmm(minOfDay(e.end)), vorbei: e.end <= new Date()
+  }));
+}
+function cmdPrompt(text) {
+  const st = S.store, s = st.settings, now = new Date();
+  const school = [0, 1, 2, 3, 4].map(i => `${DLONG[i]} ${s.school[String(i)][0]}–${s.school[String(i)][1]}`).join(", ");
+  const types = Object.entries(META).filter(([k]) => !["geb", "test"].includes(k)).map(([k, m]) => `${k} = ${m.label}`).join(", ");
+  return `Du bist die Planungshilfe in Tagwerk, dem Wochenplaner von David. Er tippt eine Änderung in einem Satz, oft knapp oder mit Tippfehlern. Führe sie mit den Werkzeugen direkt aus, ohne Rückfrage, außer der Wunsch ist wirklich unklar oder würde mehr als drei Blöcke löschen.
+
+Jetzt: ${DLONG[(now.getDay() + 6) % 7]}, ${ymd(now)}, ${hhmm(minOfDay(now))} Uhr, Zeitzone Europe/Berlin.
+Regeln seiner Planung: Schule ${school}. Nach der Schule 30 min bis zu Hause. Fußweg Wohnung–Bibliothek 30 min (Mo–Sa), Bibliothek–Gym 15 min, Gym–Wohnung 30 min. Gym am liebsten direkt nach der Bibliothek, sonst davor. Höchstens eine Lernzeit pro Tag. 15 min Pause zwischen Blöcken. Der letzte Block endet um 23:00, danach Sekundärbuch. Wochenende ab 08:00. Blöcke in der Vergangenheit nicht verändern.
+Blocktypen: ${types}. Für etwas ohne Typ (Abgabe, Arzt, Treffen) nimm typ "termin".
+Wenn du einen Block verschiebst und dadurch andere am selben Tag kollidieren, schieb die anderen mit, statt sie zu überlappen.
+Eine Hausaufgabe oder Erledigung mit Frist, aber ohne feste Uhrzeit, legst du mit add_task an; Tagwerk plant sie dann selbst ein.
+
+Blöcke der angezeigten Woche (${ymd(S.weekStart)} bis ${ymd(addDays(S.weekStart, 6))}):
+${JSON.stringify(compactEvents(S.events))}
+Offene Aufgaben: ${JSON.stringify((st.tasks || []).filter(t => !t.done).map(t => ({ titel: t.title, min: t.min, fällig: t.due })))}
+Für andere Tage hole die Blöcke mit list_blocks.
+
+Antworte zum Schluss in einem bis drei kurzen Sätzen auf Deutsch, was du geändert hast. Keine Aufzählung, keine Rückfrage, wenn alles erledigt ist.
+
+Davids Wunsch: ${text}`;
+}
+const CMD_TOOLS = () => [
+  { name: "list_blocks", description: "Listet alle Kalendereinträge von Tag 'von' bis Tag 'bis' (je JJJJ-MM-TT, höchstens 14 Tage) mit id, titel, typ, tag, von, bis.",
+    inputSchema: { type: "object", properties: { von: { type: "string" }, bis: { type: "string" } }, required: ["von", "bis"] },
+    async execute(i) {
+      const a = ymdToDate(String(i.von)), b = addDays(ymdToDate(String(i.bis)), 1);
+      if ((b - a) / 864e5 > 15) throw new Error("Höchstens 14 Tage auf einmal.");
+      const evs = await listAll({ startTime: localISO(a, 0), endTime: localISO(b, 0) });
+      return compactEvents(evs.map(parseEvent).filter(Boolean));
+    } },
+  { name: "move_block", description: "Verschiebt einen Eintrag per id auf einen neuen Tag und neue Uhrzeiten (von/bis als HH:MM). Gibt 'ok' zurück.",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, tag: { type: "string" }, von: { type: "string" }, bis: { type: "string" } }, required: ["id", "tag", "von", "bis"] },
+    async execute(i) {
+      const d = ymdToDate(String(i.tag)), a = toMin(String(i.von)), b = toMin(String(i.bis));
+      if (!(b > a)) throw new Error("bis muss nach von liegen.");
+      await call("update_event", { eventId: String(i.id), startTime: localISO(d, a), endTime: localISO(d, b), notificationLevel: "NONE" });
+      cmdLog(`verschoben: ${i.id.slice(0, 6)}… auf ${i.tag} ${i.von}–${i.bis}`); return "ok";
+    } },
+  { name: "delete_block", description: "Löscht einen Eintrag per id endgültig. Nur benutzen, wenn David das Weglassen ausdrücklich will.",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, titel: { type: "string" } }, required: ["id"] },
+    async execute(i) {
+      const ev = S.events.find(e => e.id === String(i.id));
+      await call("delete_event", { eventId: String(i.id), notificationLevel: "NONE" });
+      if (ev && ev.type === "task" && ev.taskId) { const t = (S.store.tasks || []).find(x => x.id === ev.taskId); if (t) t.eid = null; }
+      cmdLog(`gelöscht: ${i.titel || (ev ? cleanTitle(ev.title) : i.id)}`); return "ok";
+    } },
+  { name: "create_block", description: "Legt einen Block an. typ = einer der Blocktypen oder 'termin'; tag JJJJ-MM-TT; von/bis HH:MM; titel nur bei 'termin' oder für einen Zusatz; notiz optional.",
+    inputSchema: { type: "object", properties: { typ: { type: "string" }, tag: { type: "string" }, von: { type: "string" }, bis: { type: "string" }, titel: { type: "string" }, notiz: { type: "string" } }, required: ["typ", "tag", "von", "bis"] },
+    async execute(i) {
+      const d = ymdToDate(String(i.tag)), a = toMin(String(i.von)), b = toMin(String(i.bis)), typ = String(i.typ);
+      if (!(b > a)) throw new Error("bis muss nach von liegen.");
+      if (META[typ] && !["geb", "test", "task"].includes(typ)) {
+        if (i.titel || i.notiz) {
+          await call("create_event", { summary: `${summaryFor(typ)}${i.titel ? " · " + i.titel : ""}`, startTime: localISO(d, a), endTime: localISO(d, b),
+            description: `[tagwerk:${typ}]\n${i.notiz || ""}\nEingeplant mit Tagwerk`, colorId: META[typ].color, overrideReminders: [{ method: "popup", minutes: +S.store.settings.remind || 5 }] });
+        } else await createBlock(typ, d, a, b - a);
+      } else {
+        await call("create_event", { summary: String(i.titel || "Termin"), startTime: localISO(d, a), endTime: localISO(d, b), description: String(i.notiz || ""), overrideReminders: [{ method: "popup", minutes: +S.store.settings.remind || 5 }] });
+      }
+      cmdLog(`neu: ${i.titel || (META[typ] ? META[typ].label : "Termin")} ${i.tag} ${i.von}–${i.bis}`); return "ok";
+    } },
+  { name: "add_task", description: "Legt eine Aufgabe mit Dauer in Minuten und Fälligkeitstag an (optional frist_uhrzeit HH:MM). Tagwerk plant sie danach selbst in eine Lücke vor der Frist.",
+    inputSchema: { type: "object", properties: { titel: { type: "string" }, minuten: { type: "number" }, faellig: { type: "string" }, frist_uhrzeit: { type: "string" } }, required: ["titel", "minuten", "faellig"] },
+    async execute(i) {
+      S.store.tasks = [...(S.store.tasks || []), { id: rid(), title: String(i.titel), min: Math.max(15, Number(i.minuten) || 60), due: String(i.faellig), dueTime: /^\d{2}:\d{2}$/.test(String(i.frist_uhrzeit || "")) ? String(i.frist_uhrzeit) : "", done: false, eid: null }];
+      await persist(); cmdLog(`Aufgabe: ${i.titel}, fällig ${i.faellig}`); return "ok, Tagwerk schlägt dafür gleich einen Platz vor";
+    } },
+  { name: "skip_type_on_day", description: "Sperrt einen Blocktyp an einem Tag, damit Tagwerk dort keinen neuen Vorschlag dafür macht (z. B. heute kein Gym).",
+    inputSchema: { type: "object", properties: { typ: { type: "string" }, tag: { type: "string" } }, required: ["typ", "tag"] },
+    async execute(i) {
+      const set = S.store.settings; set.skip = set.skip || {};
+      const k = String(i.tag), l = Array.isArray(set.skip[k]) ? set.skip[k] : [];
+      if (!l.includes(String(i.typ))) l.push(String(i.typ)); set.skip[k] = l;
+      await persist(); cmdLog(`gesperrt: ${i.typ} am ${k}`); return "ok";
+    } }
+];
+function cmdLog(line) { (S.cmdActs = S.cmdActs || []).push(line); cmdShow(); }
+function cmdShow(text) {
+  const o = $("#cmd-out"); o.hidden = false;
+  if (text !== undefined) S.cmdText = text;
+  o.innerHTML = `${esc(S.cmdText || "")}${(S.cmdActs || []).map(a => `<span class="act">${esc(a)}</span>`).join("")}`;
+}
+function cmdErr(e) {
+  switch (e && e.code) {
+    case "cancelled": return "Abgebrochen. Was schon geändert war, bleibt.";
+    case "not_granted": case "sampling_disabled": case "capability_disabled": case "capability_removed": case "not_declared": return "Die Befehlszeile ist in dieser Ansicht nicht erlaubt. Ändere den Plan über die Blöcke oder im Chat.";
+    case "tools_unavailable": return "Diese Ansicht kann keine Änderungen ausführen. Öffne Tagwerk in claude.ai.";
+    case "rate_limited": return "Gerade zu viele Anfragen. Versuch es in ein paar Minuten noch einmal.";
+    case "session_expired": return "Bitte melde dich bei claude.ai neu an.";
+    case "refused": return "Das kann ich so nicht ausführen. Formuliere es anders.";
+    default: return "Das hat nicht geklappt. Versuch es noch einmal.";
+  }
+}
+async function runCommand() {
+  const inp = $("#cmd-in"), text = inp.value.trim();
+  if (!text || !S.sample || S.cmdBusy) return;
+  if (!S.mcp || !S.eventsLoaded) { toast("Der Kalender ist noch nicht geladen."); return; }
+  S.cmdBusy = true; S.cmdActs = []; S.cmdCtl = new AbortController();
+  $("#cmd-go").disabled = true; $("#cmd-stop").hidden = false; cmdShow("Denke nach …");
+  let got = false;
+  try {
+    const r = await S.sample(cmdPrompt(text), { tools: CMD_TOOLS(), signal: S.cmdCtl.signal, onText: ({ text: t }) => { got = true; cmdShow(t.trim().split(/\n\s*\n/).at(-1)); } });
+    cmdShow(r.text.trim().split(/\n\s*\n/).at(-1));
+    inp.value = "";
+  } catch (e) {
+    cmdShow(((e && e.text) ? e.text.trim().split(/\n\s*\n/).at(-1) + "\n" : "") + cmdErr(e));
+    if (e && ["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"].includes(e.code)) S.sample = null;
+  } finally {
+    S.cmdBusy = false; $("#cmd-go").disabled = false; $("#cmd-stop").hidden = true;
+    if ((S.cmdActs || []).length) await loadWeek();
+  }
+}
+
+try { S.sideTab = localStorage.getItem("tagwerk.sideTab") || "soll"; } catch (_) { S.sideTab = "soll"; }
+/* Abgleich mit anderen Geräten: beim Zurückkehren und alle zwei Minuten */
+let lastPoll = Date.now();
+function refresh(force) {
+  if (!S.mcp || S.busy || S.sheet || S.cmdBusy || document.hidden) return;
+  if (!force && Date.now() - lastPoll < 30e3) return;
+  lastPoll = Date.now(); TW.poll(); loadWeek();
+}
+document.addEventListener("visibilitychange", () => refresh(false));
+window.addEventListener("focus", () => refresh(false));
+setInterval(() => refresh(true), 120e3);
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+use("mcp").then(m => {
+  if (!m) { S.calErr = { code: "no_sync" }; render(); return; }
+  S.mcp = m; loadWeek(); scheduleMirror();
+}).catch(() => { S.calErr = { code: "capability_disabled" }; render(); });
+})();
+</script>
+
+</body></html>

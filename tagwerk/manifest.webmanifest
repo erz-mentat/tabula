@@ -1,0 +1,11 @@
+{
+  "name": "Tagwerk",
+  "short_name": "Tagwerk",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#15110c",
+  "theme_color": "#15110c",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }]
+}
