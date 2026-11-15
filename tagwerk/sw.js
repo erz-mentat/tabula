@@ -1,5 +1,5 @@
 // Tagwerk Service Worker: startet aus dem Zwischenspeicher, holt Updates im Hintergrund.
-const CACHE = 'tagwerk-v1';
+const CACHE = 'tagwerk-v2';
 const ASSETS = ['./', './index.html', './store.js', './icon.png', './manifest.webmanifest'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));

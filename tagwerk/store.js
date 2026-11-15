@@ -36,6 +36,7 @@ const TW = (() => {
     if (!c) throw fail("no_sync", "Tagwerk ist noch nicht mit deinem Repository verbunden.");
     const headers = { Authorization: `Bearer ${c.token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
     if (opts.etag) headers["If-None-Match"] = opts.etag;
+    if (opts.accept) headers.Accept = opts.accept;
     if (opts.body) headers["Content-Type"] = "application/json";
     const url = `${API}/repos/${c.repo}/contents/${path}` + (opts.method ? "" : "?ref=main");
     try { return await fetch(url, { method: opts.method || "GET", headers, body: opts.body, cache: "no-store" }); }
@@ -360,8 +361,23 @@ const TW = (() => {
   /* ---- Planungshilfe über Daimonion (nur im Daimonion-Fenster) ---- */
   const sample = (window.daimonion && typeof window.daimonion.sample === "function") ? window.daimonion.sample : null;
 
+  /* Für Daimonion: ein Dokument gezielt ändern und beliebige Dateien des Repositorys lesen (Tabula) */
+  function mutateDoc(name, fn) { return mutateFile(docPath(name), fn); }
+  async function readDoc(name) { return clone((await fetchFile(docPath(name))).data); }
+  async function readRaw(p) {
+    const r = await gh(String(p).replace(/^\/+/, ""), { accept: "application/vnd.github.raw+json" });
+    if (r.status === 404) return null;
+    if (!r.ok) throw await httpErr(r);
+    return r.text();
+  }
+  async function listDir(p) {
+    const r = await gh(String(p).replace(/^\/+/, ""));
+    if (r.status === 404) return [];
+    if (!r.ok) throw await httpErr(r);
+    const j = await r.json(); return Array.isArray(j) ? j.map(e => ({ name: e.name, type: e.type, size: e.size })) : [];
+  }
   return {
-    offline: false, cfg, setCfg, clearCfg, poll, tools,
+    offline: false, cfg, setCfg, clearCfg, poll, tools, mutateDoc, readDoc, readRaw, listDir,
     use(n) { if (n === "db") return Promise.resolve(cfg() ? db : null); if (n === "mcp") return Promise.resolve(cfg() ? mcp : null); if (n === "sample") return Promise.resolve(sample); return Promise.resolve(null); },
     async test(repo, token) {
       const r = await fetch(`${API}/repos/${repo}`, { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" }, cache: "no-store" }).catch(() => null);

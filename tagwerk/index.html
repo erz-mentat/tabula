@@ -977,11 +977,22 @@ async function syncEvents() {
     }
   } finally { S.syncingEv = false; }
 }
+/* Für den Morgenbericht auch die Folgewoche: Sonst fehlt am Montag früh der Plan, wenn Tagwerk zuletzt am Wochenende offen war. */
+async function nextWeekEntries() {
+  if (ymd(S.weekStart) !== ymd(mondayOf(new Date()))) return {};
+  const ws = addDays(S.weekStart, 7);
+  try {
+    const evs = (await listAll({ startTime: localISO(ws, 0), endTime: localISO(addDays(ws, 7), 0) })).map(parseEvent).filter(Boolean);
+    const keep = [S.weekStart, S.events];
+    S.weekStart = ws; S.events = evs;
+    try { return planEntries(); } finally { [S.weekStart, S.events] = keep; }
+  } catch (_) { return {}; }
+}
 async function syncPlan() {
   if (!S.planRef) return;
   try { await S.planReady; } catch (_) {}
   const cutoff = ymd(addDays(new Date(), -14));
-  const merged = { ...(S.planDays || {}), ...planEntries() };
+  const merged = { ...(S.planDays || {}), ...(await nextWeekEntries()), ...planEntries() };
   for (const k of Object.keys(merged)) if (k < cutoff) delete merged[k];
   const json = JSON.stringify(merged);
   if (json === S.planJson) return;
