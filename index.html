@@ -305,7 +305,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       <header class="lib-head">
         <div>
           <h1 class="wordmark">Tabula <em>Notizbücher</em></h1>
-          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 31</span></p>
+          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 36</span></p>
         </div>
         <div class="lib-actions">
           <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
@@ -416,6 +416,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       </div>
       <div class="selbar" id="selBar" hidden role="toolbar" aria-label="Auswahl">
         <button type="button" id="selEdit" class="accent" hidden>Bearbeiten</button>
+        <button type="button" id="selLink" hidden>Link öffnen</button>
         <button type="button" id="selCard" class="accent">Karte</button>
         <span class="selbar-sep"></span>
         <button type="button" id="selCopy">Kopieren</button>
@@ -684,27 +685,72 @@ function layoutText(s) {
     let line = '';
     for (const word of para.split(/ +/)) {
       const tryL = line ? line + ' ' + word : word;
-      if (m.measureText(tryL).width <= w || !line) {
-        if (m.measureText(tryL).width > w && !line) {   // überlanges Wort zeichenweise trennen
-          let cur = '';
-          for (const ch of word) { if (m.measureText(cur + ch).width > w && cur) { out.push(cur); cur = ''; } cur += ch; }
-          line = cur;
-        } else line = tryL;
-      } else { out.push(line); line = word; }
+      if (m.measureText(tryL).width <= w) { line = tryL; continue; }
+      if (line) { out.push(line); line = ''; }
+      if (m.measureText(word).width <= w) { line = word; continue; }
+      let cur = '';   // überlanges Wort (z. B. ein Link) zeichenweise trennen
+      for (const ch of word) { if (m.measureText(cur + ch).width > w && cur) { out.push(cur); cur = ''; } cur += ch; }
+      line = cur;
     }
     out.push(line);
   }
   return out;
 }
+/* Links in Textfeldern: werden unterstrichen und öffnen sich beim Antippen */
+const URL_RE = /(?:https?:\/\/|www\.)[^\s<>"]+[^\s<>".,;:!?)\]}'“”]/gi;
+function textLinks(s, lines) {
+  const text = String(s.text || ''), ranges = [];
+  for (const m of text.matchAll(URL_RE)) ranges.push([m.index, m.index + m[0].length, m[0]]);
+  if (!ranges.length) return [];
+  // Zeichen der umbrochenen Zeilen auf den Originaltext abbilden
+  const m = textMeasure; m.font = `${s.size}px ${TEXT_FONT}`;
+  const out = []; let p = 0;
+  lines.forEach((l, li) => {
+    while (p < text.length && /\s/.test(text[p]) && text[p] !== l[0]) p++;
+    let run = null;
+    for (let k = 0; k < l.length; k++, p++) {
+      while (p < text.length && text[p] !== l[k]) p++;
+      const r = ranges.find(r => p >= r[0] && p < r[1]);
+      if (r && run && run.r === r) run.end = k + 1;
+      else { if (run) out.push(run); run = r ? { li, start: k, end: k + 1, r } : null; }
+    }
+    if (run) out.push(run);
+  });
+  return out.map(({ li, start, end, r }) => {
+    const x0 = s.x + m.measureText(lines[li].slice(0, start)).width, x1 = s.x + m.measureText(lines[li].slice(0, end)).width;
+    const base = s.y + s.size * (1 + TEXT_LH * li);
+    const url = /^www\./i.test(r[2]) ? 'https://' + r[2] : r[2];
+    return { x0, x1, y0: base - s.size * 1.0, y1: base + s.size * 0.3, base, url };
+  });
+}
 function drawText(ctx, s, e) {
   ctx.save(); ctx.globalAlpha = 1; ctx.fillStyle = s.color || '#1b1f27'; ctx.font = `${s.size}px ${TEXT_FONT}`;
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   e.lines.forEach((l, i) => { if (l) ctx.fillText(l, s.x, s.y + s.size * (1 + TEXT_LH * i)); });
+  if (e.links && e.links.length) {
+    ctx.fillStyle = s.color || '#1b1f27';
+    const th = Math.max(1, s.size * 0.07);
+    for (const L of e.links) ctx.fillRect(L.x0, L.base + s.size * 0.12, L.x1 - L.x0, th);
+  }
   ctx.restore();
+}
+function linkAt(px, py) {
+  for (const s of S.strokes) {
+    if (s.deleted || s.tool !== 'text') continue;
+    const e = entry(s);
+    if (!e.links) continue;
+    const pad = 6 / S.v.s;
+    const L = e.links.find(L => px >= L.x0 - pad && px <= L.x1 + pad && py >= L.y0 - pad && py <= L.y1 + pad);
+    if (L) return { s, url: L.url };
+  }
+  return null;
+}
+function openLink(url) {
+  try { const w = window.open(url, '_blank', 'noopener'); if (!w) location.href = url; } catch (e) { location.href = url; }
 }
 function buildEntry(s) {
   if (s.tool === 'image') return { box: [s.x, s.y, s.x + s.w, s.y + s.h] };
-  if (s.tool === 'text') { const lines = layoutText(s); return { lines, box: [s.x, s.y, s.x + s.w, s.y + s.size * (0.3 + TEXT_LH * Math.max(1, lines.length))] }; }
+  if (s.tool === 'text') { const lines = layoutText(s); return { lines, links: textLinks(s, lines), box: [s.x, s.y, s.x + s.w, s.y + s.size * (0.3 + TEXT_LH * Math.max(1, lines.length))] }; }
   const withP = s.tool === 'pen' && !!s.pr;
   const pts = unflat(s.pts, withP);
   const outline = PF.getStroke(pts, strokeOpts(s.tool, s.size, withP, true));
@@ -1318,6 +1364,7 @@ onTap($('selCopy'), copySel);
 onTap($('selDelete'), deleteSel);
 onTap($('selCard'), () => cardFromSelection());
 onTap($('selEdit'), () => { const it = selItems(); if (it.length === 1 && it[0].tool === 'text') editText(it[0]); });
+onTap($('selLink'), () => { const it = selItems(); const L = it.length === 1 && it[0].tool === 'text' && entry(it[0]).links; if (L && L.length) openLink(L[0].url); });
 for (const t of ['pointerdown', 'touchstart']) selBar.addEventListener(t, e => e.stopPropagation(), { passive: true });
 function updateSelBar(box) {
   if (!box || S.view !== 'editor') { if (!selBar.hidden) selBar.hidden = true; return; }
@@ -1326,6 +1373,8 @@ function updateSelBar(box) {
   const noPen = !items.some(s => s.tool === 'pen' || s.tool === 'text');
   const oneText = items.length === 1 && items[0].tool === 'text';
   if ($('selEdit').hidden === oneText) $('selEdit').hidden = !oneText;
+  const hasLink = oneText && !!(entry(items[0]).links || []).length;
+  if ($('selLink').hidden === hasLink) $('selLink').hidden = !hasLink;
   if ($('selColors').hidden !== noPen) $('selColors').hidden = noPen;
   const lbl = cardDraft ? 'Als Rückseite' : 'Karte';
   if ($('selCard').textContent !== lbl) $('selCard').textContent = lbl;   // nur bei Änderung, sonst verliert Safari den Tipp
@@ -1435,6 +1484,8 @@ function onTouchUp(e, cancelled) {
       // Antippen gibt ein Bild oder Textfeld zum Verschieben frei (Rahmen); ein Textfeld, das schon frei ist, öffnet sich zum Bearbeiten
       const px = (tapInfo.x - S.v.x) / S.v.s, py = (tapInfo.y - S.v.y) / S.v.s, box = sel ? selBox() : null;
       if (box && Math.hypot(px - box[2], py - box[1]) <= 30 / S.v.s) { lastTap = null; tapInfo = null; deleteSel(); return; }
+      const link = linkAt(px, py);
+      if (link && !(sel && sel.ids.includes(link.s.id))) { lastTap = null; tapInfo = null; openLink(link.url); return; }
       const hit = imageAt(px, py, true);
       if (hit) {
         const ids = imageGroup(hit), already = sel && ids.every(id => sel.ids.includes(id));
@@ -3670,7 +3721,7 @@ async function boot() {
     const hadCtrl = !!navigator.serviceWorker.controller;
     // Notbremse für hängende Updates (v. a. iOS-Homescreen): Stimmt die Version auf dem Server nicht, Zwischenspeicher leeren und neu laden.
     fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(async j => {
-      if (!j || String(j.v) === '31') return;
+      if (!j || String(j.v) === '36') return;
       if (sessionStorage.getItem('tabula.forceUpd') === String(j.v)) return;
       sessionStorage.setItem('tabula.forceUpd', String(j.v));
       flushMeta(); persistDirty();
