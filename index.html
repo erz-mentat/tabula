@@ -305,7 +305,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       <header class="lib-head">
         <div>
           <h1 class="wordmark">Tabula <em>Notizbücher</em></h1>
-          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version 36</span></p>
+          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version XXXVII</span></p>
         </div>
         <div class="lib-actions">
           <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
@@ -2949,7 +2949,9 @@ async function pullOne(path, sha) {
   return 0;   // Bilder (assets/…): assetImg holt sie beim ersten Anzeigen
 }
 async function pullChanges(remote, known, meta) {
-  const changed = Object.keys(remote).filter(p => remote[p] !== known[p]);
+  // Nur was Tabula selbst liest: Im Repository liegen auch Bilder (kommen erst beim Anzeigen) und die Daten von Daimonion und Tagwerk.
+  const mine = p => p === 'index.json' || p === 'tabula.json' || /^(cards|reviews|pages)\//.test(p);
+  const changed = Object.keys(remote).filter(p => mine(p) && remote[p] !== known[p]);
   if (!changed.length) return { total: 0, legacy: false, failed: [] };
   let total = 0, n = 0, stop = false;
   const failed = [];
@@ -3716,12 +3718,13 @@ async function boot() {
   try { await ensureBaseline(); } catch (e) { console.error(e); }
   autosaveTick();
   gitSync({ push: true });
-  if (!EMBEDDED && 'serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) {
+  // In Daimonion liefert der Rechner die Seite aus und hat dort einen eigenen Service Worker (Mitteilungen): hier keinen anmelden und keinen abmelden.
+  if (!EMBEDDED && !document.documentElement.hasAttribute('data-in-daimonion') && 'serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) {
     // Updates zuverlässig holen: beim Zurückkehren in die App nachsehen und eine neue Version sofort übernehmen
     const hadCtrl = !!navigator.serviceWorker.controller;
     // Notbremse für hängende Updates (v. a. iOS-Homescreen): Stimmt die Version auf dem Server nicht, Zwischenspeicher leeren und neu laden.
     fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(async j => {
-      if (!j || String(j.v) === '36') return;
+      if (!j || String(j.v) === '37') return;
       if (sessionStorage.getItem('tabula.forceUpd') === String(j.v)) return;
       sessionStorage.setItem('tabula.forceUpd', String(j.v));
       flushMeta(); persistDirty();
