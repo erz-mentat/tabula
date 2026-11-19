@@ -3,26 +3,26 @@
 <link rel="apple-touch-icon" href="icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Tagwerk">
-<meta name="theme-color" content="#15110c">
+<meta name="theme-color" content="#1d1e21">
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Tagwerk</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* Layout: Kopfleiste mit Wochensteuerung; darunter links das Wochenraster (Zeitachse + sieben Tagesspalten), rechts die Seitenleiste mit Wochensoll und Warteschlangen. Auf schmalen Bildschirmen ein Tag mit Tagesreitern, Seitenleiste darunter. */
 :root {
-  /* Dune: gleiche Palette und Schriften wie Daimonion */
-  --bg: #e4d6bf;
-  --surface: #ede3d1;
-  --surface-2: #d9c9ae;
-  --ink: #22180f;
-  --muted: #6b5a46;
-  --line: #c9b697;
-  --accent: #8c6b1f;
-  --accent-ink: #fbf4e8;
-  --danger: #983122;
-  --now: #b33a22;
-  --hatch: rgba(42, 32, 23, .08);
-  --scrim: rgba(34, 24, 15, .42);
+  /* Gleiche Palette und Schriften wie Daimonion: Grau, Off-White, Türkis */
+  --bg: #e9e8e4;
+  --surface: #f3f2ee;
+  --surface-2: #dcdbd7;
+  --ink: #1b1c1f;
+  --muted: #55565a;
+  --line: #b5b2aa;
+  --accent: #17708f;
+  --accent-ink: #ffffff;
+  --danger: #a8322c;
+  --now: #c2402c;
+  --hatch: rgba(27, 28, 31, .08);
+  --scrim: rgba(20, 21, 23, .42);
   --mix: 20%;
   /* Farben der Google-Kalender-Farbpalette, damit Blöcke hier und in Google gleich aussehen */
   /* Terminfarben in Erdtönen, gleiche Reihenfolge wie Google (1 Lavendel … 11 Tomate) */
@@ -34,17 +34,17 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #15110c; --surface: #1d1711; --surface-2: #261f17; --ink: #ecdfca; --muted: #9b8970;
-    --line: #342a1f; --accent: #d4a94a; --accent-ink: #15110c; --danger: #e57f6b; --now: #e8694f;
-    --hatch: rgba(236, 223, 202, .07); --scrim: rgba(0, 0, 0, .6); --mix: 26%;
+    --bg: #1d1e21; --surface: #242528; --surface-2: #2e2f33; --ink: #f3f0ea; --muted: #cbc6bc;
+    --line: #5d5b57; --accent: #5fc1e4; --accent-ink: #06202b; --danger: #ef6b6b; --now: #ff7a6a;
+    --hatch: rgba(243, 240, 234, .07); --scrim: rgba(0, 0, 0, .6); --mix: 26%;
     --g1: #a597bd; --g2: #9bb575; --g3: #a8719a; --g4: #d9917f; --g5: #d8ae52; --g6: #d5774a; --g7: #6ea6b2; --g8: #9a8e80; --g9: #7b86b3; --g10: #7f9a57; --g11: #cc5b4b;
     color-scheme: dark;
   }
 }
-:root[data-theme="dark"] {
-  --bg: #15110c; --surface: #1d1711; --surface-2: #261f17; --ink: #ecdfca; --muted: #9b8970;
-  --line: #342a1f; --accent: #d4a94a; --accent-ink: #15110c; --danger: #e57f6b; --now: #e8694f;
-  --hatch: rgba(236, 223, 202, .07); --scrim: rgba(0, 0, 0, .6); --mix: 26%;
+:root[data-theme="dark"], :root[data-in-daimonion] {
+  --bg: #1d1e21; --surface: #242528; --surface-2: #2e2f33; --ink: #f3f0ea; --muted: #cbc6bc;
+  --line: #5d5b57; --accent: #5fc1e4; --accent-ink: #06202b; --danger: #ef6b6b; --now: #ff7a6a;
+  --hatch: rgba(243, 240, 234, .07); --scrim: rgba(0, 0, 0, .6); --mix: 26%;
     --g1: #a597bd; --g2: #9bb575; --g3: #a8719a; --g4: #d9917f; --g5: #d8ae52; --g6: #d5774a; --g7: #6ea6b2; --g8: #9a8e80; --g9: #7b86b3; --g10: #7f9a57; --g11: #cc5b4b;
   color-scheme: dark;
 }
