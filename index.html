@@ -306,7 +306,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       <header class="lib-head">
         <div>
           <h1 class="wordmark">Tabula <em>Notizbücher</em></h1>
-          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version XLI</span></p>
+          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version XLII</span></p>
         </div>
         <div class="lib-actions">
           <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
@@ -3726,7 +3726,12 @@ async function boot() {
   }
   if (EMBEDDED) { $('exportBtn').hidden = true; $('importBtn').hidden = true; $('pdfBtn').hidden = true; $('pngBtn').hidden = true; $('backupMenuBtn').hidden = true; $('pdfExportBtn').hidden = true; }
   if (persistent && !EMBEDDED) { try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) {} }
-  if (persistent && !EMBEDDED && syncCfg()) { toast('Lade Stand von GitHub …'); await gitSync({ push: false }); }
+  // Seit XLII: Was auf dem Gerät liegt, steht sofort da; der Abgleich mit GitHub läuft dahinter und zeichnet neu, wenn etwas dazukam.
+  // Nur ein leeres Gerät wartet auf den ersten Abgleich (und zeigt die Notizbücher, sobald das Verzeichnis da ist).
+  let hasLocal = false;
+  try { hasLocal = (await Store.getAll('notebooks')).some(n => !n.deleted); } catch (e) {}
+  const firstPull = persistent && !EMBEDDED && syncCfg() ? gitSync({ push: false }) : null;
+  if (firstPull && !hasLocal) { toast('Lade Stand von GitHub …'); S.view = 'library'; await firstPull; }
   try {
     const all = await Store.getAll('notebooks');
     if (!all.length) await seedExample();
@@ -3741,7 +3746,7 @@ async function boot() {
     const hadCtrl = !!navigator.serviceWorker.controller;
     // Notbremse für hängende Updates (v. a. iOS-Homescreen): Stimmt die Version auf dem Server nicht, Zwischenspeicher leeren und neu laden.
     fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(async j => {
-      if (!j || String(j.v) === '41') return;
+      if (!j || String(j.v) === '42') return;
       if (sessionStorage.getItem('tabula.forceUpd') === String(j.v)) return;
       sessionStorage.setItem('tabula.forceUpd', String(j.v));
       flushMeta(); persistDirty();
