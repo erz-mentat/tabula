@@ -95,6 +95,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .thumb{display:block;width:100%;max-width:100%;height:auto;aspect-ratio:210/297;border-radius:3px;background:var(--paper);box-shadow:0 1px 2px var(--shadow),0 10px 26px var(--shadow)}
 .nb-meta{display:flex;align-items:flex-start;gap:4px}
 .nb-text{flex:1;min-width:0}
+.lib-teil{grid-column:1 / -1;margin:18px 0 0;padding-top:14px;border-top:1px solid var(--line);font-size:.95rem;font-weight:600;color:var(--muted)}
 .nb-title{margin:0;font-family:var(--font-display);font-weight:500;font-size:1.06rem;line-height:1.25;overflow-wrap:anywhere}
 .nb-sub{margin:3px 0 0;color:var(--muted);font-size:.8rem;font-variant-numeric:tabular-nums}
 .empty{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:28px 0;max-width:46ch}
@@ -305,7 +306,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       <header class="lib-head">
         <div>
           <h1 class="wordmark">Tabula <em>Notizbücher</em></h1>
-          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version XXXVIII</span></p>
+          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version XXXIX</span></p>
         </div>
         <div class="lib-actions">
           <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
@@ -2019,7 +2020,11 @@ async function showLibrary() {
   const grid = $('nbGrid'); grid.textContent = '';
   $('emptyState').hidden = nbs.length > 0;
   grid.hidden = !nbs.length;
-  for (const nb of nbs) {
+  // Transkripte (Kurzfassungen der Unterrichtsaufnahmen, von Daimonion angelegt) stehen als eigener Bereich unter den Notizbüchern (seit XXXIX).
+  const istTr = (n) => /^transkripte$/i.test(String(n.title || '').trim()), reihe = [...nbs.filter(n => !istTr(n)), ...nbs.filter(istTr)];
+  let trKopf = false;
+  for (const nb of reihe) {
+    if (istTr(nb) && !trKopf) { trKopf = true; const k = document.createElement('h2'); k.className = 'lib-teil'; k.textContent = 'Transkripte'; grid.appendChild(k); }
     const art = document.createElement('article'); art.className = 'nb';
     const open = document.createElement('button'); open.type = 'button'; open.className = 'nb-open';
     open.setAttribute('aria-label', 'Öffnen: ' + nb.title);
@@ -3724,7 +3729,7 @@ async function boot() {
     const hadCtrl = !!navigator.serviceWorker.controller;
     // Notbremse für hängende Updates (v. a. iOS-Homescreen): Stimmt die Version auf dem Server nicht, Zwischenspeicher leeren und neu laden.
     fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(async j => {
-      if (!j || String(j.v) === '38') return;
+      if (!j || String(j.v) === '39') return;
       if (sessionStorage.getItem('tabula.forceUpd') === String(j.v)) return;
       sessionStorage.setItem('tabula.forceUpd', String(j.v));
       flushMeta(); persistDirty();
