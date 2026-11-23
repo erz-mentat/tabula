@@ -306,7 +306,7 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       <header class="lib-head">
         <div>
           <h1 class="wordmark">Tabula <em>Notizbücher</em></h1>
-          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version XLII</span></p>
+          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version XLIII</span></p>
         </div>
         <div class="lib-actions">
           <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
@@ -2010,9 +2010,21 @@ function when(ts) {
   if (d.toDateString() === y.toDateString()) return 'gestern, ' + fmtTime.format(d);
   return fmtDate.format(d);
 }
+/* Seit XLIII: Wo man zuletzt war (Bibliothek, Heft und Seite, Kartenstapel, Abfrage), bleibt 12 Stunden gemerkt. Schließt man Daimonion
+   auf dem iPad und öffnet es wieder, lädt Tabula neu; dann geht es dort weiter statt auf der Startseite. */
+const ORT_DAUER = 12 * 3600e3;
+function ortMerken(o) { lsSet('tabula.ort', { ...o, t: Date.now() }); }
+async function ortWiederherstellen() {
+  const o = lsGet('tabula.ort', null); if (!o || Date.now() - (o.t || 0) > ORT_DAUER) return;
+  try {
+    if (o.v === 'editor' && o.nb) { const nb = await Store.get('notebooks', o.nb); if (nb && !nb.deleted) await openNotebook(o.nb, o.pi || 0); }
+    else if (o.v === 'decks') await showDecks();
+    else if (o.v === 'study' && Array.isArray(o.nbIds) && o.nbIds.length) { await showDecks(); await startStudy(o.nbIds, !!o.cram, 'decks'); }
+  } catch (e) { console.error(e); }
+}
 async function showLibrary() {
   S.view = 'library'; S.page = null; S.nb = null; ink = null; eraser = null; touches.clear(); gesture = null;
-  setView('library');
+  setView('library'); ortMerken({ v: 'library' });
   renderLibStatus(); updateDueBadge();
   const nbs = (await Store.getAll('notebooks')).filter(n => !n.deleted).sort((a, b) => b.u - a.u);
   const pageCount = new Map();
@@ -2207,7 +2219,7 @@ async function gotoPage(i) {
   const strokes = await Store.getAll('strokes', 'pageId', page.id);
   if (token !== S.loadToken) return;
   strokes.sort((a, b) => a.t - b.t);
-  S.pi = i; S.page = page; S.strokes = strokes;
+  S.pi = i; S.page = page; S.strokes = strokes; if (S.nb) ortMerken({ v: 'editor', nb: S.nb.id, pi: i });
   S.byId = new Map(strokes.map(s => [s.id, s])); S.cache.clear(); sel = null; drag = null; lasso = null; selBar.hidden = true; showCardBar();
   const f = fmtOf(page); PW = f.w; PH = f.h;
   fitView(PW > PH ? 'page' : 'width');
@@ -3338,7 +3350,7 @@ async function updateStudyLabel() {
 /* Karteikasten-Übersicht */
 async function showDecks() {
   flushMeta();
-  S.view = 'decks'; S.page = null; S.nb = null; setView('decks');
+  S.view = 'decks'; S.page = null; S.nb = null; setView('decks'); ortMerken({ v: 'decks' });
   const { cards, nbs } = await liveCards();
   const list = $('deckList'); list.textContent = '';
   const byNb = new Map();
@@ -3457,7 +3469,7 @@ async function startStudy(nbIds, cram, back, onlyIds) {
   const title = nbIds.length === 1 ? (nbs.find(n => n.id === nbIds[0]) || {}).title : 'Alle Hefte';
   ST = { q, i: 0, flipped: false, seen: false, cram, back, wrong: new Set(), right: 0, missed: 0, total: q.length, title, nbIds,
          ret: back === 'editor' && S.nb ? { nb: S.nb.id, page: S.page && S.page.id } : null };
-  S.view = 'study'; setView('study');
+  S.view = 'study'; setView('study'); ortMerken({ v: 'study', nbIds, cram: !!cram });
   $('studyDone').hidden = true; $('studyBody').hidden = false;
   renderStudy();
 }
@@ -3736,7 +3748,9 @@ async function boot() {
     const all = await Store.getAll('notebooks');
     if (!all.length) await seedExample();
   } catch (e) { console.error(e); }
+  const ortVorher = lsGet('tabula.ort', null);
   await showLibrary();
+  if (ortVorher) { lsSet('tabula.ort', ortVorher); await ortWiederherstellen(); }
   try { await ensureBaseline(); } catch (e) { console.error(e); }
   autosaveTick();
   gitSync({ push: true });
