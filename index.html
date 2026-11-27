@@ -306,14 +306,14 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stro
       <header class="lib-head">
         <div>
           <h1 class="wordmark">Tabula <em>Notizbücher</em></h1>
-          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version XLIII</span></p>
+          <p class="lib-sub">Seiten von A4 bis A1 für Stift und Marker, gespeichert auf diesem Gerät. <span style="opacity:.6">Version XLIV</span></p>
         </div>
         <div class="lib-actions">
           <button class="btn primary" id="newNbBtn" type="button"><svg class="i"><use href="#i-plus"/></svg>Neues Notizbuch</button>
           <button class="btn" id="decksBtn" type="button"><svg class="i"><use href="#i-cards"/></svg>Karteikasten<span class="badge" id="dueBadge" hidden></span></button>
-          <button class="btn" id="exportBtn" type="button"><svg class="i"><use href="#i-save"/></svg>Backup sichern</button>
+          <button class="btn" id="exportBtn" type="button" hidden><svg class="i"><use href="#i-save"/></svg>Backup sichern</button>
           <button class="btn" id="pdfBtn" type="button"><svg class="i"><use href="#i-pdf"/></svg>PDF importieren</button>
-          <button class="btn" id="importBtn" type="button"><svg class="i"><use href="#i-load"/></svg>Backup laden</button>
+          <button class="btn" id="importBtn" type="button" hidden><svg class="i"><use href="#i-load"/></svg>Backup laden</button>
           <input type="file" id="pdfFile" accept="application/pdf,.pdf" multiple style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1">
           <input type="file" id="pickFile" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1">
           <input type="file" id="importFile" accept="application/json,.json" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1">
@@ -2851,12 +2851,15 @@ function renderLibStatus() {
 async function showSnapshots() {
   await snapTick('auto');
   const snaps = (await Store.getAll('snapshots')).sort((a, b) => b.t - a.t);
-  if (!snaps.length) { toast('Noch keine Sicherung vorhanden.'); return; }
+
   const what = x => x.reason === 'start' ? 'Ausgangsstand' : x.reason === 'restore' ? 'vor Wiederherstellung'
     : `${x.pages} ${x.pages === 1 ? 'Seite' : 'Seiten'} geändert`;
-  const actions = snaps.map(x => ({ id: x.id, label: `${when(x.t)} · ${what(x)}` }));
+  const actions = [...(EMBEDDED ? [] : [{ id: '__sichern', label: 'Backup-Datei sichern' }, { id: '__laden', label: 'Backup-Datei laden' }]), ...snaps.map(x => ({ id: x.id, label: `${when(x.t)} · ${what(x)}` }))];
+  if (!actions.length) { toast('Noch keine Sicherung vorhanden.'); return; }
   const id = await dialog({ title: 'Sicherungen', text: 'Wähle einen Stand, um ihn wiederherzustellen. Der aktuelle Stand wird vorher selbst gesichert. Ältere Stände liegen auf GitHub in der Versionsgeschichte.', actions, scroll: true });
   if (!id) return;
+  if (id === '__sichern') return exportBackup();
+  if (id === '__laden') return $('importFile').click();
   const snap = snaps.find(x => x.id === id);
   const ok = await dialog({ title: `Stand von ${when(snap.t)} wiederherstellen?`, text: 'Alle Notizbücher kehren zu diesem Zeitpunkt zurück. Was danach geschrieben wurde, liegt weiter in der Sicherung „vor Wiederherstellung“.', confirm: 'Wiederherstellen', danger: true });
   if (!ok) return;
@@ -3224,7 +3227,7 @@ async function syncSettings() {
 /* ================= Karteikarten (Leitner, fünf Fächer) ================= */
 const LEITNER_DAYS = [0, 1, 3, 7, 14, 30];   // Abstand in Tagen für Fach 1 bis 5
 const dayStart = (t = Date.now()) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
-const isDue = c => !c.deleted && (c.due || 0) <= Date.now();
+const isDue = c => !c.deleted && !c.archiv && (c.due || 0) <= Date.now();   // archivierte Karten (seit XLIV) sind nie fällig
 const VIEWS = ['library', 'editor', 'decks', 'study'];
 function setView(name) { for (const v of VIEWS) $(v).hidden = v !== name; if (name !== 'editor') { selBar.hidden = true; } }
 let cardDraft = null;
@@ -3245,7 +3248,7 @@ function cardsFile(cards) {
     : JSON.stringify({ id: c.id, t: c.t, cu: c.cu, sec: c.sectionId || null, src: c.src || null, sb: c.srcBox || null, f: faceOut(c.front), b: faceOut(c.back) })).join('\n') + '\n';
 }
 function reviewFile(cards) {
-  const ls = cards.slice().sort((a, b) => (a.id < b.id ? -1 : 1)).map(c => `${JSON.stringify(c.id)}:[${c.box || 1},${c.due || 0},${c.ru || 0}]`);
+  const ls = cards.slice().sort((a, b) => (a.id < b.id ? -1 : 1)).map(c => `${JSON.stringify(c.id)}:[${c.box || 1},${c.due || 0},${c.ru || 0}${c.archiv ? ',1' : ''}]`);
   return `{\n${ls.join(',\n')}\n}\n`;
 }
 async function mergeCardFiles(nbId, contentText, reviewText) {
@@ -3263,9 +3266,9 @@ async function mergeCardFiles(nbId, contentText, reviewText) {
   if (reviewText != null) {
     const r = JSON.parse(reviewText);
     for (const id in r) {
-      const [box, due, ru] = r[id], ex = get(id);
+      const [box, due, ru, arch] = r[id], ex = get(id);
       if (!ex || (ex.ru || 0) >= ru) continue;
-      const c = { ...ex, box, due, ru }; c.u = Math.max(c.cu || 0, ru); out.set(id, c);
+      const c = { ...ex, box, due, ru, archiv: arch ? 1 : 0 }; c.u = Math.max(c.cu || 0, ru); out.set(id, c);
     }
   }
   if (out.size) await Store.put('cards', [...out.values()]);
@@ -3361,13 +3364,13 @@ async function showDecks() {
   $('decksEmpty').hidden = byNb.size > 0;
   const order = nbs.filter(n => byNb.has(n.id)).sort((a, b) => byNb.get(b.id).filter(isDue).length - byNb.get(a.id).filter(isDue).length || a.title.localeCompare(b.title, 'de'));
   for (const nb of order) {
-    const cs = byNb.get(nb.id), due = cs.filter(isDue).length;
+    const alle = byNb.get(nb.id), cs = alle.filter(c => !c.archiv), nArch = alle.length - cs.length, due = cs.filter(isDue).length;
     const counts = [1, 2, 3, 4, 5].map(k => cs.filter(c => (c.box || 1) === k).length), max = Math.max(1, ...counts);
     const el = document.createElement('article'); el.className = 'deck';
     const info = document.createElement('div'); info.className = 'deck-info';
     const h = document.createElement('h2'); h.textContent = nb.title;
     const m = document.createElement('p'); m.className = 'deck-meta';
-    m.innerHTML = `${cs.length} ${cs.length === 1 ? 'Karte' : 'Karten'} · ${due ? `<b>${due} fällig</b>` : 'nichts fällig'}`;
+    m.innerHTML = `${cs.length} ${cs.length === 1 ? 'Karte' : 'Karten'} · ${due ? `<b>${due} fällig</b>` : 'nichts fällig'}${nArch ? ` · ${nArch} im Archiv` : ''}`;
     const boxes = document.createElement('div'); boxes.className = 'boxes'; boxes.setAttribute('aria-label', counts.map((n, i) => `Fach ${i + 1}: ${n}`).join(', '));
     counts.forEach((n, i) => {
       const col = document.createElement('div'); col.className = 'boxcol';
@@ -3378,12 +3381,12 @@ async function showDecks() {
     const acts = document.createElement('div'); acts.className = 'deck-actions';
     const mk = (label, cls, fn, disabled) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (cls ? ' ' + cls : ''); b.textContent = label; b.disabled = !!disabled; b.onclick = fn; acts.appendChild(b); };
     mk(due ? `Lernen (${due})` : 'Lernen', 'primary', () => startStudy([nb.id], false, 'decks'), !due);
-    mk('Üben', '', () => startStudy([nb.id], true, 'decks'));
+    mk('Üben', '', () => startStudy([nb.id], true, 'decks'), !cs.length);
     mk('Neue Karte', '', async () => { if (await newTextCard(nb.id)) showDecks(); });
     mk('Karten', '', () => cardList(nb));
     const more = document.createElement('button'); more.type = 'button'; more.className = 'icon-btn deck-more';
     more.setAttribute('aria-label', `Optionen für ${nb.title}`); more.innerHTML = '<svg class="i"><use href="#i-more"/></svg>';
-    more.onclick = () => deckMenu(nb, cs); acts.appendChild(more);
+    more.onclick = () => deckMenu(nb, cs, alle.filter(c => c.archiv)); acts.appendChild(more);
     el.append(info, acts);
     list.appendChild(el);
   }
@@ -3391,7 +3394,7 @@ async function showDecks() {
 const cardLabel = c => {
   const f = c.front || {};
   const what = f.text != null ? f.text.replace(/\s+/g, ' ').slice(0, 60) + (f.text.length > 60 ? '…' : '') : 'Handschrift';
-  return `${what} · Fach ${c.box || 1}${isDue(c) ? ' · fällig' : ''}`;
+  return `${what} · ${c.archiv ? 'im Archiv' : `Fach ${c.box || 1}${isDue(c) ? ' · fällig' : ''}`}`;
 };
 async function cardList(nb) {
   const cards = (await Store.getAll('cards', 'notebookId', nb.id)).filter(c => !c.deleted).sort(byTime);
@@ -3403,19 +3406,31 @@ async function cardList(nb) {
   const acts = [{ id: 'show', label: 'Ansehen' }];
   if (page && !page.deleted) acts.push({ id: 'src', label: 'Zur Seite im Heft' });
   if ((c.box || 1) > 1) acts.push({ id: 'reset', label: 'Zurück in Fach 1' });
+  acts.push({ id: 'arch', label: c.archiv ? 'Aus dem Archiv holen' : 'Archivieren' });
   acts.push({ id: 'del', label: 'Karte löschen', danger: true });
   const a = await dialog({ title: cardLabel(c), actions: acts });
+  if (a === 'arch') { await archivSetzen([c], !c.archiv); toast(c.archiv ? 'Karte liegt im Archiv' : 'Karte ist wieder im Kasten'); showDecks(); return; }
   if (a === 'show') startStudy([nb.id], true, 'decks', [c.id]);
   else if (a === 'src') openSource(c);
   else if (a === 'reset') { const now = Date.now(); Object.assign(c, { box: 1, due: 0, ru: now, u: now }); await save('cards', c); showDecks(); }
   else if (a === 'del') { if (await deleteCard(c)) showDecks(); }
 }
-async function deckMenu(nb, cs) {
+// Archiv (seit XLIV): archivierte Karten bleiben erhalten, werden aber nicht mehr abgefragt und zählen nicht als fällig. Der Vermerk reist mit dem Lernstand.
+async function archivSetzen(cards, an) {
+  const now = Date.now();
+  for (const c of cards) { Object.assign(c, { archiv: an ? 1 : 0, ru: now, u: Math.max(c.cu || 0, now) }); await save('cards', c); }
+  updateDueBadge();
+}
+async function deckMenu(nb, cs, arch = []) {
   const acts = [{ id: 'list', label: 'Karten anzeigen' }, { id: 'nb', label: 'Zum Heft' }];
+  if (cs.length) acts.push({ id: 'archall', label: cs.length === 1 ? 'Karte archivieren' : `Alle ${cs.length} Karten archivieren` });
+  if (arch.length) acts.push({ id: 'archback', label: arch.length === 1 ? 'Archivierte Karte zurückholen' : `${arch.length} archivierte Karten zurückholen` });
   if (cs.some(c => (c.box || 1) > 1)) acts.push({ id: 'reset', label: 'Alle Karten zurück in Fach 1' });
   acts.push({ id: 'del', label: cs.length === 1 ? 'Karte löschen' : `Alle ${cs.length} Karten löschen`, danger: true });
   const a = await dialog({ title: nb.title, actions: acts });
   if (a === 'list') cardList(nb);
+  else if (a === 'archall') { await archivSetzen(cs, true); toast(cs.length === 1 ? 'Karte liegt im Archiv' : `${cs.length} Karten liegen im Archiv`); showDecks(); }
+  else if (a === 'archback') { await archivSetzen(arch, false); toast('Die Karten sind wieder im Kasten'); showDecks(); }
   else if (a === 'nb') openNotebook(nb.id);
   else if (a === 'reset') {
     const now = Date.now();
@@ -3460,7 +3475,7 @@ async function openSource(c) {
 let ST = null;
 async function startStudy(nbIds, cram, back, onlyIds) {
   const { cards, nbs } = await liveCards();
-  let q = cards.filter(c => nbIds.includes(c.notebookId) && (!onlyIds || onlyIds.includes(c.id)));
+  let q = cards.filter(c => nbIds.includes(c.notebookId) && (onlyIds ? onlyIds.includes(c.id) : !c.archiv));
   if (!cram) q = q.filter(isDue);
   if (!q.length) { toast(cram ? 'Hier gibt es noch keine Karten.' : 'Heute ist hier nichts fällig. Mit „Üben“ kannst du trotzdem wiederholen.'); return; }
   for (let i = q.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [q[i], q[j]] = [q[j], q[i]]; }
@@ -3606,10 +3621,15 @@ $('studyMore').onclick = async () => {
   const acts = [];
   if (c.src) acts.push({ id: 'src', label: 'Zur Quelle' });
   if (!ST.cram && (c.box || 1) > 1) acts.push({ id: 'reset', label: 'Zurück in Fach 1' });
+  if (!c.archiv) acts.push({ id: 'arch', label: 'Archivieren' });
   acts.push({ id: 'del', label: 'Karte löschen', danger: true });
   const a = await dialog({ title: `Karte · Fach ${c.box || 1}`, actions: acts });
   if (!ST) return;
   if (a === 'src') { ST = null; openSource(c); }
+  else if (a === 'arch') {
+    await archivSetzen([c], true); toast('Karte liegt im Archiv');
+    ST.q = ST.q.filter((x, j) => j < ST.i || x.id !== c.id); ST.flipped = false; ST.seen = false; renderStudy();
+  }
   else if (a === 'reset') {
     const now = Date.now(); Object.assign(c, { box: 1, due: 0, ru: now, u: Math.max(c.cu || 0, now) }); await save('cards', c);
     toast('Karte liegt wieder in Fach 1'); renderStudy();
