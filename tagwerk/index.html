@@ -5,26 +5,6 @@
 <meta name="apple-mobile-web-app-title" content="Tagwerk">
 <meta name="theme-color" content="#1d1e21">
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
-/* Seit Tabula XLVI (David 27.11.2026: „zu bunt, anstrengend“): Tagwerk ruhiger. Blöcke liegen auf der neutralen Fläche und tragen ihre Art nur noch
-   als schmalen, gedämpften Streifen links; Raster und Knöpfe treten zurück; die Hauptaktion ist tiefes Lila statt einer hellen Fläche. */
-:root[data-theme="dark"], :root[data-in-daimonion], :root:not([data-theme="light"]) { --mix: 7%; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --g1: #9d93b3; --g2: #93a380; --g3: #a08698; --g4: #b89990; --g5: #b5a27a; --g6: #b38d78; --g7: #84a0a8; --g8: #96908a; --g9: #8a90ad; --g10: #879476; --g11: #c9685a; --line: #3d3e43; } }
-:root[data-theme="dark"], :root[data-in-daimonion] {
-  --g1: #9d93b3; --g2: #93a380; --g3: #a08698; --g4: #b89990; --g5: #b5a27a; --g6: #b38d78; --g7: #84a0a8; --g8: #96908a; --g9: #8a90ad; --g10: #879476; --g11: #c9685a; --line: #3d3e43; }
-.col { background-image: linear-gradient(color-mix(in srgb, var(--line) 55%, transparent) 1px, transparent 1px); }
-.blk.plan { background: color-mix(in srgb, var(--c) var(--mix), var(--surface-2)); border-left: 2px solid color-mix(in srgb, var(--c) 80%, var(--surface)); }
-.blk.plan:hover { background: color-mix(in srgb, var(--c) 13%, var(--surface-2)); }
-.blk.frame { background: color-mix(in srgb, var(--c) 4%, var(--surface)); border-color: color-mix(in srgb, var(--c) 28%, var(--line)); border-left-width: 2px; }
-.blk.frame:hover { background: color-mix(in srgb, var(--c) 8%, var(--surface)); }
-.blk.sugg { background: transparent; border: 1px dashed color-mix(in srgb, var(--c) 65%, var(--line)); }
-.blk.done { opacity: .45; }
-.types button[aria-pressed="true"] { background: color-mix(in srgb, var(--c) 10%, var(--surface)); }
-.btn.primary { background: #5b45b8; border-color: color-mix(in srgb, #c4b5fd 30%, #5b45b8); color: #fff; }
-.btn.danger:not(.armed) { color: var(--muted); }
-.chip.wx.wet, .chip.geb { background: transparent; }
-.meter i { background: color-mix(in srgb, var(--c) 75%, var(--surface-2)); }
-:focus-visible { outline-color: #c4b5fd; }
 </style></head><body>
 <title>Tagwerk</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -259,6 +239,27 @@ input[type="number"] { font-family: var(--f-mono); font-variant-numeric: tabular
 
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 40; background: var(--ink); color: var(--surface); padding: 9px 14px; border-radius: 8px; max-width: min(520px, calc(100% - 32px)); box-sizing: border-box; font-size: 13px; }
 @media (prefers-reduced-motion: no-preference) { .toast { animation: rise .18s ease-out; } @keyframes rise { from { transform: translate(-50%, 8px); opacity: 0; } } }
+
+/* Seit Tabula XLVII (David 27.11.2026: „viel zu bunt … Lilatöne, Grau, Weiß, eine Farbe im Kontrast“). Eine Farbfamilie statt elf Farben:
+   Denkarbeit in Lila (hell bis tief), Lesen in Weiß und Hellgrau, Orte in Stahl, und Bernstein als einzige Gegenfarbe für das, was heraussticht
+   (Gym, Tests, die Jetzt-Linie). XLVI hatte denselben Versuch, stand aber im falschen Stilblock und wirkte nicht. */
+:root[data-theme="dark"], :root[data-in-daimonion], :root:not([data-theme="light"]) {
+  --mix: 11%; --line: #3d3e43; --now: #f0b54a;
+  --g1: #b39cf8; --g2: #ece9f4; --g3: #d6cbff; --g4: #8e8a99; --g5: #b9b5c6; --g6: #d9b77c; --g7: #8b6cef; --g8: #6a52d1; --g9: #a493e8; --g10: #7f8691; --g11: #f0b54a; }
+.col { background-image: linear-gradient(color-mix(in srgb, var(--line) 55%, transparent) 1px, transparent 1px); }
+.blk.plan { background: color-mix(in srgb, var(--c) var(--mix), var(--surface-2)); border-left: 3px solid var(--c); }
+.blk.plan:hover { background: color-mix(in srgb, var(--c) 18%, var(--surface-2)); }
+.blk.frame { background: color-mix(in srgb, var(--c) 5%, var(--surface)); border-color: color-mix(in srgb, var(--c) 40%, var(--line)); }
+.blk.frame:hover { background: color-mix(in srgb, var(--c) 9%, var(--surface)); }
+.blk.frame .fl-lab { color: var(--muted); }
+.blk.sugg { background: transparent; border: 1px dashed color-mix(in srgb, var(--c) 70%, var(--line)); }
+.blk.done { opacity: .45; }
+.blk.school.exam { border-color: var(--g11); }
+.btn.primary { background: #5b45b8; border-color: color-mix(in srgb, #c4b5fd 30%, #5b45b8); color: #fff; }
+.btn.danger:not(.armed) { color: var(--muted); }
+.chip.wx.wet, .chip.geb { background: transparent; border-color: var(--line); }
+.types button[aria-pressed="true"] { background: color-mix(in srgb, var(--c) 12%, var(--surface)); }
+:focus-visible { outline-color: #c4b5fd; }
 </style>
 
 <div class="wrap">
