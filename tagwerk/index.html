@@ -349,6 +349,12 @@ const DEFAULT_STORE = {
   tests: [],
   done: {}
 };
+// Öffentliche Fassung: neutraler Start ohne Davids Alltag
+if (window.__PUBLICA__) {
+  Object.assign(META.gym, { label: "Sport" }); Object.assign(META.va, { label: "Kurs" }); Object.assign(META.yt, { label: "Videos" }); Object.assign(META.sach, { label: "Lesen" }); Object.assign(META.abend, { label: "Abendlektüre" }); Object.assign(META.gt, { label: "Projekt" });
+  const s = DEFAULT_STORE.settings; s.school = {}; s.walk = { bib: 0, bibGym: 0, gym: 0 }; s.lecturesPerWeek = 0;
+  for (const t of Object.values(DEFAULT_STORE.types)) { t.perWeek = 0; delete t.sundayFixed; delete t.optional; }
+}
 
 /* ---------- Hilfsfunktionen ---------- */
 const $ = s => document.querySelector(s);
@@ -1028,7 +1034,7 @@ function summaryFor(type, lab) {
   if (type === "task") return `Aufgabe · ${lab && lab.title ? lab.title : "Aufgabe"}`;
   if (type === "gt") return `Spieltheorie · ${(lab && lab.title && lab.title !== "Plan leer") ? lab.title : "nächster Schritt"}`;
   if (type === "sach") return b.sach ? `Primärbuch · ${b.sach}` : "Primärbuch";
-  if (type === "abend") return b.abend ? `Sekundärbuch · ${b.abend}` : "Sekundärbuch";
+  if (type === "abend") return b.abend ? `${META.abend.label} · ${b.abend}` : META.abend.label;
   if (type === "lern") { const ta = lab && lab.test; return ta ? `Lernzeit · ${ta.subject}` : "Lernzeit"; }
   return META[type].label;
 }
@@ -1191,7 +1197,7 @@ function blockText(type, lab, title, date, pair) {
   if (type === "gt") return { t: "Spieltheorie", s: lab ? lab.title : cleanTitle(title).replace(/^Spieltheorie · /, "") };
   if (type === "va" || type === "vb") return { t: typeLabel(type), s: lab ? (lab.qtitle ? `${lab.qtitle} · ${lab.sub}` : lab.sub) : (type === "vb" ? "Lektüre" : "Vorlesung") };
   if (type === "sach") return { t: "Primärbuch", s: b.sach };
-  if (type === "abend") return { t: "Sekundärbuch", s: b.abend };
+  if (type === "abend") return { t: META.abend.label, s: b.abend };
   if (type === "lern") {
     const ta = date ? testAhead(date) : null;
     return { t: "Lernzeit", s: ta ? `${ta.subject}, Test ${ta.when}` : "Prüfungsvorbereitung" };
@@ -1314,7 +1320,7 @@ function renderSide() {
       const first = st.settings.lectureFirst === "va" ? "va" : "vb";
       let note = lectureRemain(first) > 0 ? `zuerst ${typeLabel(first)}` : "nach Reihenfolge";
       if (S.short.lec) note += ` · kein Platz für ${S.short.lec}`;
-      soll += `<div class="srow" style="--c:${colorVar("va")}"><span class="dot"></span><span class="nm"><b>Vorlesungen</b><small>${esc(note)}</small></span><span class="pips" aria-label="${set} eingetragen, ${sg} vorgeschlagen, Soll ${target}">${pipRow(set, sg, target)}</span><span class="step"><button data-act="sollLec" data-d="-1" aria-label="Vorlesungen weniger">−</button><span class="mono">${target}</span><button data-act="sollLec" data-d="1" aria-label="Vorlesungen mehr">+</button></span></div>`;
+      soll += `<div class="srow" style="--c:${colorVar("va")}"><span class="dot"></span><span class="nm"><b>${window.__PUBLICA__ ? "Kurse" : "Vorlesungen"}</b><small>${esc(note)}</small></span><span class="pips" aria-label="${set} eingetragen, ${sg} vorgeschlagen, Soll ${target}">${pipRow(set, sg, target)}</span><span class="step"><button data-act="sollLec" data-d="-1" aria-label="${window.__PUBLICA__ ? "Kurse" : "Vorlesungen"} weniger">−</button><span class="mono">${target}</span><button data-act="sollLec" data-d="1" aria-label="${window.__PUBLICA__ ? "Kurse" : "Vorlesungen"} mehr">+</button></span></div>`;
       continue;
     }
     const T = st.types[t], set = counts[t] || 0, sg = sugc[t] || 0, target = (+T.perWeek || 0) + (t === "lern" ? (S.testEves || 0) : 0);
@@ -1337,7 +1343,7 @@ function renderSide() {
     soll += `<div class="srow" style="--c:${colorVar(t)}"><span class="dot"></span><span class="nm"><b>${esc(typeLabel(t))}</b><small>${esc(note)}</small></span><span class="pips" aria-label="${set} eingetragen, ${sg} vorgeschlagen, Soll ${target}">${pips}</span><span class="step"><button data-act="soll" data-type="${t}" data-d="-1" aria-label="${esc(typeLabel(t))} weniger">−</button><span class="mono">${+T.perWeek || 0}</span><button data-act="soll" data-type="${t}" data-d="1" aria-label="${esc(typeLabel(t))} mehr">+</button></span></div>`;
   }
   const hasAbend = S.events.some(e => e.type === "abend");
-  soll += `<div class="srow" style="--c:${colorVar("abend")}"><span class="dot"></span><span class="nm"><b>Sekundärbuch</b><small>täglich ${esc(st.types.abend.fixed)} Uhr, ${st.types.abend.dur} min</small></span><span></span>${hasAbend ? `<span class="mono" style="font-size:12px;color:var(--muted)">läuft</span>` : `<button class="btn" data-act="abendSeries" ${S.mcp && S.eventsLoaded ? "" : "disabled"}>Serie eintragen</button>`}</div>`;
+  soll += `<div class="srow" style="--c:${colorVar("abend")}"><span class="dot"></span><span class="nm"><b>${META.abend.label}</b><small>täglich ${esc(st.types.abend.fixed)} Uhr, ${st.types.abend.dur} min</small></span><span></span>${hasAbend ? `<span class="mono" style="font-size:12px;color:var(--muted)">läuft</span>` : `<button class="btn" data-act="abendSeries" ${S.mcp && S.eventsLoaded ? "" : "disabled"}>Serie eintragen</button>`}</div>`;
 
   let lec = "";
   for (const slot of ["va", "vb"]) {
@@ -1366,7 +1372,7 @@ function renderSide() {
     <p class="note">Volle Kästchen sind eingetragen, gestrichelte vorgeschlagen.</p>
   </section>
   <section class="panel" data-tab="q" aria-labelledby="h-q"><div class="ph"><h2 id="h-q">Warteschlangen</h2></div>
-    <div class="eyebrow">Vorlesungen</div>${lec}
+    <div class="eyebrow">${window.__PUBLICA__ ? "Kurse" : "Vorlesungen"}</div>${lec}
     <div class="eyebrow">YouTube</div>${yt}
     <form class="form" data-form="yt">
       <input type="text" id="yt-url" placeholder="YouTube-Link" autocomplete="off" aria-label="YouTube-Link">
@@ -1376,7 +1382,7 @@ function renderSide() {
     <div class="eyebrow">Bücher</div>
     <div class="form" style="margin-top:0">
       <label class="fl" for="book-sach">Primärbuch<input type="text" id="book-sach" data-book="sach" value="${esc(st.books.sach)}" placeholder="Titel eintragen"></label>${st.books.sachNext ? `<p class="note" style="margin:0">Danach: ${esc(st.books.sachNext)} <button class="mini" style="width:auto;padding-inline:6px" data-act="nextBook">jetzt beginnen</button></p>` : ""}
-      <label class="fl" for="book-abend">Sekundärbuch<input type="text" id="book-abend" data-book="abend" value="${esc(st.books.abend)}" placeholder="Titel eintragen"></label>
+      <label class="fl" for="book-abend">${META.abend.label}<input type="text" id="book-abend" data-book="abend" value="${esc(st.books.abend)}" placeholder="Titel eintragen"></label>
     </div>
   </section>
   <section class="panel" data-tab="task" aria-labelledby="h-task"><div class="ph"><h2 id="h-task">Aufgaben</h2></div>
@@ -1424,7 +1430,7 @@ function tasksHtml() {
 }
 function loadHtml() {
   if (!S.eventsLoaded || S.calErr) return "";
-  const st = S.store, names = { lec: "Vorlesungen", task: "Aufgaben" };
+  const st = S.store, names = { lec: window.__PUBLICA__ ? "Kurse" : "Vorlesungen", task: "Aufgaben" };
   const durOf = k => k === "lec" ? (+st.types.va.dur || 60) : k === "task" ? 60 : (+(st.types[k] || {}).dur || 60);
   const miss = Object.entries(S.short || {}).filter(([, n]) => n > 0);
   const missMin = miss.reduce((a, [k, n]) => a + n * durOf(k), 0);
@@ -1516,7 +1522,7 @@ function sheetSettings() {
   for (const t of TYPE_ORDER) {
     const T = st.types[t];
     if (t === "abend") {
-      rows += `<tr><td><span class="dot" style="--c:${colorVar(t)};display:inline-block;margin-right:6px"></span>Sekundärbuch</td><td><input type="number" id="st-${t}-dur" min="15" step="5" value="${T.dur}" aria-label="Dauer"></td><td colspan="2"><input type="time" id="st-${t}-fixed" value="${esc(T.fixed)}" aria-label="Uhrzeit"></td></tr>`;
+      rows += `<tr><td><span class="dot" style="--c:${colorVar(t)};display:inline-block;margin-right:6px"></span>${META.abend.label}</td><td><input type="number" id="st-${t}-dur" min="15" step="5" value="${T.dur}" aria-label="Dauer"></td><td colspan="2"><input type="time" id="st-${t}-fixed" value="${esc(T.fixed)}" aria-label="Uhrzeit"></td></tr>`;
       continue;
     }
     rows += `<tr><td><span class="dot" style="--c:${colorVar(t)};display:inline-block;margin-right:6px"></span>${esc(typeLabel(t))}</td><td><input type="number" id="st-${t}-dur" min="15" step="15" value="${T.dur}" aria-label="Dauer"></td><td><input type="time" id="st-${t}-from" step="900" value="${esc(T.from)}" aria-label="frühestens"></td><td><input type="time" id="st-${t}-to" step="900" value="${esc(T.to)}" aria-label="spätestens Ende"></td></tr>`;
@@ -1793,7 +1799,7 @@ const A = {
   },
   abendSeries(el) {
     const T = S.store.types.abend, start = toMin(T.fixed), dur = +T.dur || 45;
-    if (start + dur > 1439) { toast("Das Sekundärbuch würde über Mitternacht gehen. Ändere Uhrzeit oder Dauer."); return; }
+    if (start + dur > 1439) { toast(`Das ${META.abend.label} würde über Mitternacht gehen. Ändere Uhrzeit oder Dauer.`); return; }
     const today = dayStart(new Date()), first = S.weekStart > today ? S.weekStart : today;
     guarded(async () => {
       try {
@@ -1801,7 +1807,7 @@ const A = {
           summary: summaryFor("abend"), startTime: localISO(first, start), endTime: localISO(first, start + dur),
           description: descFor("abend"), colorId: META.abend.color, recurrenceData: ["RRULE:FREQ=DAILY"]
         });
-        toast("Sekundärbuch täglich eingetragen.");
+        toast(`${META.abend.label} täglich eingetragen.`);
       } catch (e) { writeFailed(e); }
       await loadWeek();
     });
@@ -1989,12 +1995,12 @@ function compactEvents(list) {
 }
 function cmdPrompt(text) {
   const st = S.store, s = st.settings, now = new Date();
-  const school = [0, 1, 2, 3, 4].map(i => `${DLONG[i]} ${s.school[String(i)][0]}–${s.school[String(i)][1]}`).join(", ");
+  const school = [0, 1, 2, 3, 4].filter(i => s.school[String(i)]).map(i => `${DLONG[i]} ${s.school[String(i)][0]}–${s.school[String(i)][1]}`).join(", ") || "keine eingetragen";
   const types = Object.entries(META).filter(([k]) => !["geb", "test"].includes(k)).map(([k, m]) => `${k} = ${m.label}`).join(", ");
-  return `Du bist die Planungshilfe in Cursus, dem Wochenplaner von David. Er tippt eine Änderung in einem Satz, oft knapp oder mit Tippfehlern. Führe sie mit den Werkzeugen direkt aus, ohne Rückfrage, außer der Wunsch ist wirklich unklar oder würde mehr als drei Blöcke löschen.
+  return `Du bist die Planungshilfe in Cursus, dem Wochenplaner ${window.__PUBLICA__ ? "des Nutzers" : "von David"}. Er tippt eine Änderung in einem Satz, oft knapp oder mit Tippfehlern. Führe sie mit den Werkzeugen direkt aus, ohne Rückfrage, außer der Wunsch ist wirklich unklar oder würde mehr als drei Blöcke löschen.
 
 Jetzt: ${DLONG[(now.getDay() + 6) % 7]}, ${ymd(now)}, ${hhmm(minOfDay(now))} Uhr, Zeitzone Europe/Berlin.
-Regeln seiner Planung: Schule ${school}. Nach der Schule 30 min bis zu Hause. Fußweg Wohnung–Bibliothek 30 min (Mo–Sa), Bibliothek–Gym 15 min, Gym–Wohnung 30 min. Gym am liebsten direkt nach der Bibliothek, sonst davor. Höchstens eine Lernzeit pro Tag. 15 min Pause zwischen Blöcken. Der letzte Block endet um 23:00, danach Sekundärbuch. Wochenende ab 08:00. Blöcke in der Vergangenheit nicht verändern.
+${window.__PUBLICA__ ? `Regeln der Planung: Schule ${school}. ${s.buffer} min Pause zwischen Blöcken. Der letzte Block endet um ${s.dayEnd}. Wochenende ab ${s.weekendStart}. Blöcke in der Vergangenheit nicht verändern.` : `Regeln seiner Planung: Schule ${school}. Nach der Schule 30 min bis zu Hause. Fußweg Wohnung–Bibliothek 30 min (Mo–Sa), Bibliothek–Gym 15 min, Gym–Wohnung 30 min. Gym am liebsten direkt nach der Bibliothek, sonst davor. Höchstens eine Lernzeit pro Tag. 15 min Pause zwischen Blöcken. Der letzte Block endet um 23:00, danach Sekundärbuch. Wochenende ab 08:00. Blöcke in der Vergangenheit nicht verändern.`}
 Blocktypen: ${types}. Für etwas ohne Typ (Abgabe, Arzt, Treffen) nimm typ "termin".
 Wenn du einen Block verschiebst und dadurch andere am selben Tag kollidieren, schieb die anderen mit, statt sie zu überlappen.
 Eine Hausaufgabe oder Erledigung mit Frist, aber ohne feste Uhrzeit, legst du mit add_task an; Cursus plant sie dann selbst ein.
