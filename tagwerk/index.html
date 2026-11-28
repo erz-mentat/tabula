@@ -2,16 +2,16 @@
 <link rel="icon" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Tagwerk">
+<meta name="apple-mobile-web-app-title" content="Cursus">
 <meta name="theme-color" content="#1d1e21">
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
 </style></head><body>
-<title>Tagwerk</title>
+<title>Cursus</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* Layout: Kopfleiste mit Wochensteuerung; darunter links das Wochenraster (Zeitachse + sieben Tagesspalten), rechts die Seitenleiste mit Wochensoll und Warteschlangen. Auf schmalen Bildschirmen ein Tag mit Tagesreitern, Seitenleiste darunter. */
 :root {
-  /* Gleiche Palette und Schriften wie Daimonion: Grau, Off-White, Türkis */
+  /* Gleiche Palette und Schriften wie Aude: Grau, Off-White, Türkis */
   --bg: #e9e8e4;
   --surface: #f3f2ee;
   --surface-2: #dcdbd7;
@@ -264,7 +264,7 @@ input[type="number"] { font-family: var(--f-mono); font-variant-numeric: tabular
 
 <div class="wrap">
   <header class="bar">
-    <div class="brand"><h1>Tagwerk</h1><span class="kw" id="kw">KW</span></div>
+    <div class="brand"><h1>Cursus</h1><span class="kw" id="kw">KW</span></div>
     <div class="nav">
       <button class="btn icon" data-act="prev" aria-label="Vorige Woche">‹</button>
       <span class="range" id="range"></span>
@@ -283,7 +283,7 @@ input[type="number"] { font-family: var(--f-mono); font-variant-numeric: tabular
   </header>
   <div id="banner"></div>
   <form class="cmd" data-form="cmd" id="cmd" hidden>
-    <label class="cmd-lab" for="cmd-in">Sag Tagwerk, was sich ändert</label>
+    <label class="cmd-lab" for="cmd-in">Sag Cursus, was sich ändert</label>
     <div class="cmd-row"><input type="text" id="cmd-in" autocomplete="off" placeholder="z. B. Gym auf morgen, dafür eine Lernzeit weg"><button class="btn primary" type="submit" id="cmd-go">Ausführen</button><button class="btn quiet" type="button" data-act="cmdStop" id="cmd-stop" hidden>Stopp</button></div>
     <div class="cmd-out" id="cmd-out" aria-live="polite" hidden></div>
   </form>
@@ -907,22 +907,22 @@ function shortMsg(m) {
 }
 function errText(e) {
   switch (e && e.code) {
-    case "no_sync": return "Tagwerk speichert jetzt in deinem privaten GitHub-Repository, demselben wie Tabula. Auf diesem Gerät fehlt die Verbindung noch.";
+    case "no_sync": return "Cursus speichert jetzt in deinem privaten GitHub-Repository, demselben wie Tabula. Auf diesem Gerät fehlt die Verbindung noch.";
     case "auth": return "Der GitHub-Schlüssel ist ungültig oder abgelaufen. Trag unter Verbindung einen neuen ein.";
     case "forbidden": return "Der GitHub-Schlüssel darf im Repository nicht schreiben.";
     case "not_found": return "Das Repository wurde nicht gefunden. Prüf den Namen unter Verbindung.";
-    case "offline": return "Keine Verbindung zu GitHub. Tagwerk zeigt den zuletzt geladenen Stand.";
+    case "offline": return "Keine Verbindung zu GitHub. Cursus zeigt den zuletzt geladenen Stand.";
     case "rate": return "GitHub bremst gerade. In einer Minute geht es weiter.";
     case "conflict": return "Ein anderes Gerät hat gleichzeitig geändert. Lade neu und versuch es noch einmal.";
     case "needs_reauth": return "Die Verbindung zu Google Calendar ist abgelaufen. Verbinde Google Calendar in claude.ai unter Einstellungen → Connectors neu.";
     case "server_not_connected": case "server_not_found": return "Google Calendar ist nicht verbunden. Füge es in claude.ai unter Einstellungen → Connectors hinzu.";
-    case "selection_required": return "Es gibt mehrere Google-Calendar-Verbindungen. Wähle in claude.ai aus, welche Tagwerk nutzen soll.";
-    case "not_in_manifest": case "approval_required": case "consent_required": return "Tagwerk darf deinen Kalender noch nicht nutzen. Tippe auf „Zugriff erlauben“ und bestätige die Anfrage.";
+    case "selection_required": return "Es gibt mehrere Google-Calendar-Verbindungen. Wähle in claude.ai aus, welche Cursus nutzen soll.";
+    case "not_in_manifest": case "approval_required": case "consent_required": return "Cursus darf deinen Kalender noch nicht nutzen. Tippe auf „Zugriff erlauben“ und bestätige die Anfrage.";
     case "blocked_by_policy": return "Der Kalenderzugriff ist für dieses Konto gesperrt.";
     case "server_unavailable": return "Google Calendar antwortet gerade nicht. Versuch es in einem Moment noch einmal.";
     case "tool_error": return "Google Calendar hat abgelehnt: " + shortMsg(e.message) + " Versuch es in einem Moment noch einmal.";
-    case "not_granted": case "capability_disabled": case "capability_removed": return "In dieser Ansicht gibt es keinen Kalenderzugriff. Öffne Tagwerk in claude.ai.";
-    default: return "Tagwerk ließ sich nicht laden" + (e && e.message ? ": " + shortMsg(e.message) : ".");
+    case "not_granted": case "capability_disabled": case "capability_removed": return "In dieser Ansicht gibt es keinen Kalenderzugriff. Öffne Cursus in claude.ai.";
+    default: return "Cursus ließ sich nicht laden" + (e && e.message ? ": " + shortMsg(e.message) : ".");
   }
 }
 async function loadWeek() {
@@ -999,7 +999,7 @@ async function syncEvents() {
     }
   } finally { S.syncingEv = false; }
 }
-/* Für den Morgenbericht auch die Folgewoche: Sonst fehlt am Montag früh der Plan, wenn Tagwerk zuletzt am Wochenende offen war. */
+/* Für den Morgenbericht auch die Folgewoche: Sonst fehlt am Montag früh der Plan, wenn Cursus zuletzt am Wochenende offen war. */
 async function nextWeekEntries() {
   if (ymd(S.weekStart) !== ymd(mondayOf(new Date()))) return {};
   const ws = addDays(S.weekStart, 7);
@@ -1044,7 +1044,7 @@ function descFor(type, lab, date, start, dur) {
       .map(s => `${hhmm(s.start)} ${blockText(s.type, S.labels["s:" + s.key], "", s.date).t}`);
     if (inside.length) lines.push("In der Bibliothek: " + inside.join(", "));
   }
-  lines.push("Eingeplant mit Tagwerk");
+  lines.push("Eingeplant mit Cursus");
   return lines.join("\n");
 }
 async function createBlock(type, date, start, dur, lab, pre, inner) {
@@ -1072,9 +1072,9 @@ function writeFailed(e) {
   toast(ambiguous ? "Unklar, ob die Änderung gespeichert wurde. Ich lade neu, prüf das Ergebnis." : errText(e));
 }
 
-/* ---------- Spiegel für Daimonion ----------
-   Tagwerk legt einen kompakten Stand seiner Planungsregeln in einen versteckten Kalendereintrag am 1.1.2000.
-   Daimonion (Davids Agent auf dem Mac) liest ihn dort, weil es an Tagwerks eigenen Speicher nicht herankommt. */
+/* ---------- Spiegel für Aude ----------
+   Cursus legt einen kompakten Stand seiner Planungsregeln in einen versteckten Kalendereintrag am 1.1.2000.
+   Aude (Davids Agent auf dem Mac) liest ihn dort, weil es an Cursus' eigenen Speicher nicht herankommt. */
 const MIRROR_TAG = "[famulus-stand]";
 let mirrorTimer = null, mirrorBusy = false;
 function mirrorDigest() {
@@ -1087,7 +1087,7 @@ function mirrorDigest() {
     tasks: (st.tasks || []).filter(t => !t.done).map(t => ({ title: t.title, min: t.min, due: t.due })) };
 }
 function scheduleMirror() {
-  return;   /* Daimonion liest Tagwerk jetzt direkt aus dem Repository */
+  return;   /* Aude liest Cursus jetzt direkt aus dem Repository */
   if (!S.mcp || !S.storeLoaded || S.calErr) return;
   clearTimeout(mirrorTimer); mirrorTimer = setTimeout(syncMirror, 4000);
 }
@@ -1106,23 +1106,23 @@ async function syncMirror() {
       if (hit) id = hit.id;
     }
     if (id) {
-      try { await call("update_event", { eventId: id, summary: "Tagwerk · Stand für Daimonion (nicht löschen)", description: desc, notificationLevel: "NONE" }); }
+      try { await call("update_event", { eventId: id, summary: "Cursus · Stand für Aude (nicht löschen)", description: desc, notificationLevel: "NONE" }); }
       catch (e) { if (e && e.code === "tool_error") id = null; else throw e; }
     }
     if (!id) {
-      const p = await call("create_event", { summary: "Tagwerk · Stand für Daimonion (nicht löschen)", startTime: "2000-01-01T00:00:00", endTime: "2000-01-02T00:00:00",
+      const p = await call("create_event", { summary: "Cursus · Stand für Aude (nicht löschen)", startTime: "2000-01-01T00:00:00", endTime: "2000-01-02T00:00:00",
         allDay: true, availability: "AVAILABILITY_FREE", useDefaultReminders: false, notificationLevel: "NONE", description: desc });
       id = (p && (p.id || (p.event && p.event.id))) || null;
     }
     S.mirrorId = id; S.mirrorBody = body;
-  } catch (e) { /* Der Spiegel ist Beiwerk; Tagwerk arbeitet ohne ihn weiter. */ }
+  } catch (e) { /* Der Spiegel ist Beiwerk; Cursus arbeitet ohne ihn weiter. */ }
   finally { mirrorBusy = false; }
 }
 
 /* ---------- Speichern ---------- */
 function dbErrText(e) {
   switch (e && e.code) {
-    case "quota_exceeded": return "Der Speicher von Tagwerk ist voll. Entferne gesehene Videos.";
+    case "quota_exceeded": return "Der Speicher von Cursus ist voll. Entferne gesehene Videos.";
     case "resource_exhausted": return "Zu viele Änderungen auf einmal. Warte kurz und versuch es erneut.";
     case "revoked": case "not_granted": case "capability_disabled": return "Speichern ist in dieser Ansicht nicht möglich.";
     default: return "Speichern fehlgeschlagen. Lade die Seite neu und versuch es erneut.";
@@ -1384,21 +1384,21 @@ function renderSide() {
     <form class="form" data-form="task">
       <input type="text" id="task-title" placeholder="Was? z. B. HA Nissen" aria-label="Aufgabe" autocomplete="off">
       <div class="row"><input type="number" id="task-min" min="15" step="15" value="60" style="width:84px" aria-label="Dauer in Minuten"><input type="date" id="task-due" style="flex:1 1 140px" aria-label="Fällig am"><input type="time" id="task-time" style="width:104px" aria-label="Uhrzeit der Frist (optional)"><button class="btn" type="submit">Eintragen</button></div>
-      <p class="note">Ohne Uhrzeit plant Tagwerk die Aufgabe spätestens am Vortag ein, mit Uhrzeit auch am Fälligkeitstag davor.</p>
+      <p class="note">Ohne Uhrzeit plant Cursus die Aufgabe spätestens am Vortag ein, mit Uhrzeit auch am Fälligkeitstag davor.</p>
     </form>
   </section>
   <section class="panel" data-tab="test" aria-labelledby="h-test"><div class="ph"><h2 id="h-test">Tests</h2></div>
     ${testsHtml()}
     <form class="form" data-form="test">
       <div class="row"><input type="text" id="test-subj" placeholder="Fach" style="flex:1 1 140px" aria-label="Fach"><input type="date" id="test-date" style="flex:0 1 160px" aria-label="Datum"><button class="btn" type="submit">Eintragen</button></div>
-      <p class="note">Am Vortag plant Tagwerk eine zusätzliche Lernzeit für das Fach ein. Der Test erscheint als ganztägiger Termin.</p>
+      <p class="note">Am Vortag plant Cursus eine zusätzliche Lernzeit für das Fach ein. Der Test erscheint als ganztägiger Termin.</p>
     </form>
   </section>
   <section class="panel" data-tab="geb" aria-labelledby="h-geb"><div class="ph"><h2 id="h-geb">Geburtstage</h2></div>
     ${birthdaysHtml()}
     <form class="form" data-form="geb">
       <div class="row"><input type="text" id="geb-name" placeholder="Name" style="flex:1 1 140px" aria-label="Name"><input type="date" id="geb-date" style="flex:0 1 160px" aria-label="Geburtsdatum"><button class="btn" type="submit">Eintragen</button></div>
-      <p class="note">Landet als jährlicher Termin in Tagwerk.</p>
+      <p class="note">Landet als jährlicher Termin in Cursus.</p>
     </form>
   </section>`;
 }
@@ -1569,7 +1569,7 @@ const A = {
   sideTab(el) { S.sideTab = el.dataset.t; try { localStorage.setItem("tagwerk.sideTab", S.sideTab); } catch (_) {} renderSide(); },
   syncSheet() {
     const c = TW.cfg() || {};
-    openSheet(`<h3>Verbindung</h3><p class="sub">Tagwerk speichert Termine, Listen und Einstellungen als Dateien im Ordner tagwerk/ deines privaten GitHub-Repositorys. ${c.shared ? "Die Verbindung kommt gerade aus Tabula auf diesem Gerät." : "Ist Tabula auf diesem Gerät verbunden, nutzt Tagwerk dieselbe Verbindung."}</p>
+    openSheet(`<h3>Verbindung</h3><p class="sub">Cursus speichert Termine, Listen und Einstellungen als Dateien im Ordner tagwerk/ deines privaten GitHub-Repositorys. ${c.shared ? "Die Verbindung kommt gerade aus Tabula auf diesem Gerät." : "Ist Tabula auf diesem Gerät verbunden, nutzt Cursus dieselbe Verbindung."}</p>
       <label class="fl" for="sy-repo">Repository<input type="text" id="sy-repo" value="${esc(c.repo || "erz-mentat/tabula-daten")}" autocomplete="off" spellcheck="false"></label>
       <label class="fl" for="sy-token">Schlüssel (fine-grained, Contents: Lesen und Schreiben)<input type="password" id="sy-token" value="" placeholder="${c.token ? "unverändert lassen" : "github_pat_…"}" autocomplete="off" spellcheck="false"></label>
       <p class="note" id="sy-msg" aria-live="polite"></p>
@@ -1619,7 +1619,7 @@ const A = {
     if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Wirklich neu planen?"; setTimeout(() => { el.classList.remove("armed"); el.textContent = "Woche neu planen"; }, 5000); return; }
     const now = new Date();
     const list = S.events.filter(ev => ev.type && !["geb", "test", "abend"].includes(ev.type) && !isDone(ev) && !ev.allDay && ev.start > now);
-    if (!list.length) { toast("Keine offenen Tagwerk-Blöcke in dieser Woche."); return; }
+    if (!list.length) { toast("Keine offenen Cursus-Blöcke in dieser Woche."); return; }
     guarded(async () => {
       let n = 0;
       for (const ev of list) {
@@ -1679,7 +1679,7 @@ const A = {
       /* Vor dem Eintragen frisch laden: Ist der Platz inzwischen belegt, wird nichts eingetragen */
       await loadWeek();
       const sg = findSg(key);
-      if (!sg) { toast("Der Platz ist inzwischen belegt. Tagwerk hat neu geplant."); return; }
+      if (!sg) { toast("Der Platz ist inzwischen belegt. Cursus hat neu geplant."); return; }
       try { await createBlock(sg.type, sg.date, sg.start, sg.dur, S.labels["s:" + sg.key], sg.pre, sg.inner); toast(`${typeLabel(sg.type)} eingetragen.`); }
       catch (e) { writeFailed(e); }
       await loadWeek();
@@ -1914,7 +1914,7 @@ document.addEventListener("submit", e => {
         const d = ymdToDate(date);
         const p = await call("create_event", {
           summary: `Test: ${subject}`, allDay: true, startTime: localISO(d, 0), endTime: localISO(addDays(d, 1), 0),
-          availability: "AVAILABILITY_FREE", colorId: META.test.color, description: "[tagwerk:test]\nEingetragen mit Tagwerk",
+          availability: "AVAILABILITY_FREE", colorId: META.test.color, description: "[tagwerk:test]\nEingetragen mit Cursus",
           overrideReminders: [{ method: "popup", minutes: 360 }]
         });
         eid = (p && (p.id || (p.event && p.event.id))) || null;
@@ -1935,7 +1935,7 @@ document.addEventListener("submit", e => {
         const p = await call("create_event", {
           summary: `Geburtstag: ${name}`, allDay: true, startTime: localISO(n, 0), endTime: localISO(addDays(n, 1), 0),
           recurrenceData: ["RRULE:FREQ=YEARLY"], availability: "AVAILABILITY_FREE", colorId: META.geb.color,
-          description: "[tagwerk:geb]\nEingetragen mit Tagwerk",
+          description: "[tagwerk:geb]\nEingetragen mit Cursus",
           overrideReminders: [{ method: "popup", minutes: 9000 }, { method: "popup", minutes: 360 }]
         });
         eid = (p && (p.id || (p.event && p.event.id))) || null;
@@ -1991,13 +1991,13 @@ function cmdPrompt(text) {
   const st = S.store, s = st.settings, now = new Date();
   const school = [0, 1, 2, 3, 4].map(i => `${DLONG[i]} ${s.school[String(i)][0]}–${s.school[String(i)][1]}`).join(", ");
   const types = Object.entries(META).filter(([k]) => !["geb", "test"].includes(k)).map(([k, m]) => `${k} = ${m.label}`).join(", ");
-  return `Du bist die Planungshilfe in Tagwerk, dem Wochenplaner von David. Er tippt eine Änderung in einem Satz, oft knapp oder mit Tippfehlern. Führe sie mit den Werkzeugen direkt aus, ohne Rückfrage, außer der Wunsch ist wirklich unklar oder würde mehr als drei Blöcke löschen.
+  return `Du bist die Planungshilfe in Cursus, dem Wochenplaner von David. Er tippt eine Änderung in einem Satz, oft knapp oder mit Tippfehlern. Führe sie mit den Werkzeugen direkt aus, ohne Rückfrage, außer der Wunsch ist wirklich unklar oder würde mehr als drei Blöcke löschen.
 
 Jetzt: ${DLONG[(now.getDay() + 6) % 7]}, ${ymd(now)}, ${hhmm(minOfDay(now))} Uhr, Zeitzone Europe/Berlin.
 Regeln seiner Planung: Schule ${school}. Nach der Schule 30 min bis zu Hause. Fußweg Wohnung–Bibliothek 30 min (Mo–Sa), Bibliothek–Gym 15 min, Gym–Wohnung 30 min. Gym am liebsten direkt nach der Bibliothek, sonst davor. Höchstens eine Lernzeit pro Tag. 15 min Pause zwischen Blöcken. Der letzte Block endet um 23:00, danach Sekundärbuch. Wochenende ab 08:00. Blöcke in der Vergangenheit nicht verändern.
 Blocktypen: ${types}. Für etwas ohne Typ (Abgabe, Arzt, Treffen) nimm typ "termin".
 Wenn du einen Block verschiebst und dadurch andere am selben Tag kollidieren, schieb die anderen mit, statt sie zu überlappen.
-Eine Hausaufgabe oder Erledigung mit Frist, aber ohne feste Uhrzeit, legst du mit add_task an; Tagwerk plant sie dann selbst ein.
+Eine Hausaufgabe oder Erledigung mit Frist, aber ohne feste Uhrzeit, legst du mit add_task an; Cursus plant sie dann selbst ein.
 
 Blöcke der angezeigten Woche (${ymd(S.weekStart)} bis ${ymd(addDays(S.weekStart, 6))}):
 ${JSON.stringify(compactEvents(S.events))}
@@ -2041,20 +2041,20 @@ const CMD_TOOLS = () => [
       if (META[typ] && !["geb", "test", "task"].includes(typ)) {
         if (i.titel || i.notiz) {
           await call("create_event", { summary: `${summaryFor(typ)}${i.titel ? " · " + i.titel : ""}`, startTime: localISO(d, a), endTime: localISO(d, b),
-            description: `[tagwerk:${typ}]\n${i.notiz || ""}\nEingeplant mit Tagwerk`, colorId: META[typ].color, overrideReminders: [{ method: "popup", minutes: +S.store.settings.remind || 5 }] });
+            description: `[tagwerk:${typ}]\n${i.notiz || ""}\nEingeplant mit Cursus`, colorId: META[typ].color, overrideReminders: [{ method: "popup", minutes: +S.store.settings.remind || 5 }] });
         } else await createBlock(typ, d, a, b - a);
       } else {
         await call("create_event", { summary: String(i.titel || "Termin"), startTime: localISO(d, a), endTime: localISO(d, b), description: String(i.notiz || ""), overrideReminders: [{ method: "popup", minutes: +S.store.settings.remind || 5 }] });
       }
       cmdLog(`neu: ${i.titel || (META[typ] ? META[typ].label : "Termin")} ${i.tag} ${i.von}–${i.bis}`); return "ok";
     } },
-  { name: "add_task", description: "Legt eine Aufgabe mit Dauer in Minuten und Fälligkeitstag an (optional frist_uhrzeit HH:MM). Tagwerk plant sie danach selbst in eine Lücke vor der Frist.",
+  { name: "add_task", description: "Legt eine Aufgabe mit Dauer in Minuten und Fälligkeitstag an (optional frist_uhrzeit HH:MM). Cursus plant sie danach selbst in eine Lücke vor der Frist.",
     inputSchema: { type: "object", properties: { titel: { type: "string" }, minuten: { type: "number" }, faellig: { type: "string" }, frist_uhrzeit: { type: "string" } }, required: ["titel", "minuten", "faellig"] },
     async execute(i) {
       S.store.tasks = [...(S.store.tasks || []), { id: rid(), title: String(i.titel), min: Math.max(15, Number(i.minuten) || 60), due: String(i.faellig), dueTime: /^\d{2}:\d{2}$/.test(String(i.frist_uhrzeit || "")) ? String(i.frist_uhrzeit) : "", done: false, eid: null }];
-      await persist(); cmdLog(`Aufgabe: ${i.titel}, fällig ${i.faellig}`); return "ok, Tagwerk schlägt dafür gleich einen Platz vor";
+      await persist(); cmdLog(`Aufgabe: ${i.titel}, fällig ${i.faellig}`); return "ok, Cursus schlägt dafür gleich einen Platz vor";
     } },
-  { name: "skip_type_on_day", description: "Sperrt einen Blocktyp an einem Tag, damit Tagwerk dort keinen neuen Vorschlag dafür macht (z. B. heute kein Gym).",
+  { name: "skip_type_on_day", description: "Sperrt einen Blocktyp an einem Tag, damit Cursus dort keinen neuen Vorschlag dafür macht (z. B. heute kein Gym).",
     inputSchema: { type: "object", properties: { typ: { type: "string" }, tag: { type: "string" } }, required: ["typ", "tag"] },
     async execute(i) {
       const set = S.store.settings; set.skip = set.skip || {};
@@ -2073,7 +2073,7 @@ function cmdErr(e) {
   switch (e && e.code) {
     case "cancelled": return "Abgebrochen. Was schon geändert war, bleibt.";
     case "not_granted": case "sampling_disabled": case "capability_disabled": case "capability_removed": case "not_declared": return "Die Befehlszeile ist in dieser Ansicht nicht erlaubt. Ändere den Plan über die Blöcke oder im Chat.";
-    case "tools_unavailable": return "Diese Ansicht kann keine Änderungen ausführen. Öffne Tagwerk in claude.ai.";
+    case "tools_unavailable": return "Diese Ansicht kann keine Änderungen ausführen. Öffne Cursus in claude.ai.";
     case "rate_limited": return "Gerade zu viele Anfragen. Versuch es in ein paar Minuten noch einmal.";
     case "session_expired": return "Bitte melde dich bei claude.ai neu an.";
     case "refused": return "Das kann ich so nicht ausführen. Formuliere es anders.";

@@ -1,11 +1,11 @@
-/* ================= Tagwerk-Speicher: privates GitHub-Repository statt Google Kalender =================
-   Tagwerk spricht weiter dieselben Werkzeuge wie früher (list_events, create_event, update_event,
+/* ================= Cursus-Speicher: privates GitHub-Repository statt Google Kalender =================
+   Cursus spricht weiter dieselben Werkzeuge wie früher (list_events, create_event, update_event,
    delete_event, ein db.doc mit onSnapshot/get/set). Dahinter liegen jetzt JSON-Dateien im Ordner
    tagwerk/ des privaten Repositorys, dasselbe, das Tabula nutzt:
      tagwerk/state.json, plan.json, weather.json   Zustand, Tagesplan, Wetter
      tagwerk/termine/JJJJ-MM.json                  Einzeltermine nach Monat des Beginns
      tagwerk/serien.json                           wiederkehrende Termine mit Ausnahmen
-   Schlüssel und Repository teilt sich Tagwerk mit Tabula (gleiche Herkunft, localStorage „tabula.sync“). */
+   Schlüssel und Repository teilt sich Cursus mit Tabula (gleiche Herkunft, localStorage „tabula.sync“). */
 const TW = (() => {
   const API = window.__TAGWERK_API__ || "https://api.github.com";
   const ROOT = "tagwerk/";
@@ -33,7 +33,7 @@ const TW = (() => {
   /* ---- GitHub ---- */
   async function gh(path, opts = {}) {
     const c = cfg();
-    if (!c) throw fail("no_sync", "Tagwerk ist noch nicht mit deinem Repository verbunden.");
+    if (!c) throw fail("no_sync", "Cursus ist noch nicht mit deinem Repository verbunden.");
     const headers = { Authorization: `Bearer ${c.token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
     if (opts.etag) headers["If-None-Match"] = opts.etag;
     if (opts.accept) headers.Accept = opts.accept;
@@ -80,7 +80,7 @@ const TW = (() => {
       const f = (attempt === 0 && fileOf(path).fresh) ? fileOf(path) : await fetchFile(path, true);
       const next = mutate(clone(f.data));
       if (next === undefined) return f.data;
-      const body = { message: `Tagwerk: ${path}`, content: enc(JSON.stringify(next, null, 1) + "\n"), branch: "main" };
+      const body = { message: `Cursus: ${path}`, content: enc(JSON.stringify(next, null, 1) + "\n"), branch: "main" };
       if (f.sha) body.sha = f.sha;
       const r = await gh(ROOT + path, { method: "PUT", body: JSON.stringify(body) });
       if (r.status === 409 || r.status === 422) { f.fresh = false; await sleep(250 + attempt * 450); continue; }
@@ -358,10 +358,10 @@ const TW = (() => {
   }
   const db = { doc };
 
-  /* ---- Planungshilfe über Daimonion (nur im Daimonion-Fenster) ---- */
+  /* ---- Planungshilfe über Aude (nur im Aude-Fenster) ---- */
   const sample = (window.daimonion && typeof window.daimonion.sample === "function") ? window.daimonion.sample : null;
 
-  /* Für Daimonion: ein Dokument gezielt ändern und beliebige Dateien des Repositorys lesen (Tabula) */
+  /* Für Aude: ein Dokument gezielt ändern und beliebige Dateien des Repositorys lesen (Tabula) */
   function mutateDoc(name, fn) { return mutateFile(docPath(name), fn); }
   async function readDoc(name) { return clone((await fetchFile(docPath(name))).data); }
   async function readRaw(p) {

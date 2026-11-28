@@ -1,5 +1,5 @@
-// Tagwerk Service Worker: startet aus dem Zwischenspeicher, holt Updates im Hintergrund.
-const CACHE = 'tagwerk-v3';
+// Cursus Service Worker: startet aus dem Zwischenspeicher, holt Updates im Hintergrund.
+const CACHE = 'tagwerk-v4';
 const ASSETS = ['./', './index.html', './store.js', './icon.png', './manifest.webmanifest'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
@@ -15,6 +15,6 @@ self.addEventListener('fetch', e => {
     if (!cached && req.mode === 'navigate') cached = await c.match('./index.html');
     const net = fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then(res => { if (res && res.ok) return c.put(req, res.clone()).then(() => res); return res; }).catch(() => null);
     if (cached) { e.waitUntil(net); return cached; }
-    return (await net) || new Response('Tagwerk ist offline und noch nicht zwischengespeichert.', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    return (await net) || new Response('Cursus ist offline und noch nicht zwischengespeichert.', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }));
 });
